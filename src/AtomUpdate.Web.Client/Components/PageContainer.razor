@@ -1,0 +1,48 @@
+@* 页面骨架：无底色页头（面包屑 + 标题 + 描述 + 右上操作区）+ 内容区，留白由 au-page-* 样式控制。
+   标题固定渲染为 h1，配合 FocusOnNavigate 与路由聚焦。 *@
+
+<div class="au-page-container">
+    <div class="au-page-header">
+        @if (!HideBreadcrumb)
+        {
+            <div class="au-breadcrumb">
+                <a href="/">首页</a> / <span class="au-crumb-current">@Title</span>
+            </div>
+        }
+        <div class="au-page-header-main">
+            <div class="au-page-header-heading">
+                <h1 class="au-page-title">@Title</h1>
+                @if (!string.IsNullOrEmpty(Description))
+                {
+                    <p class="au-page-desc">@Description</p>
+                }
+            </div>
+            @if (Extra is not null)
+            {
+                <div class="au-page-header-extra">@Extra</div>
+            }
+        </div>
+    </div>
+    <div class="au-page-body">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = "";
+
+    /// <summary>标题下的一行说明。</summary>
+    [Parameter]
+    public string? Description { get; set; }
+
+    /// <summary>页头右侧操作区（主按钮放这里，不放表格上方）。</summary>
+    [Parameter]
+    public RenderFragment? Extra { get; set; }
+
+    [Parameter]
+    public bool HideBreadcrumb { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

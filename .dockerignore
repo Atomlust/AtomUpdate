@@ -1,0 +1,31 @@
+# 版本控制
+.git/
+.gitignore
+.gitattributes
+
+# 代理工作数据（记忆/日志，与构建无关）
+.workbuddy/
+
+# 构建产物
+**/bin/
+**/obj/
+artifacts/
+TestResults/
+Temp/
+
+# IDE / OS
+.vs/
+.idea/
+.vscode/
+**/*.user
+**/*.suo
+.DS_Store
+Thumbs.db
+
+# 无需进构建上下文的内容（Dockerfile 只 build Web 闭包）
+tests/
+docs/
+tools/
+samples/
+.dockerignore
+docker-compose.yml

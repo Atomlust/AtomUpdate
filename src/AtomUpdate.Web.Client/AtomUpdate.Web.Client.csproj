@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <NoDefaultLaunchSettingsFile>true</NoDefaultLaunchSettingsFile>
+    <StaticWebAssetProjectMode>Default</StaticWebAssetProjectMode>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!-- BL0012（.NET 11 Razor 分析器）：事件回调/lifecycle 方法尾部框架会自动重渲，
+         此处多处保留显式 StateHasChanged()（含 await 前强制中间渲染的加载态模式），
+         调用无害且删除有回归风险，按 AtomBlazor 同款处置在本工程抑制。 -->
+    <NoWarn>$(NoWarn);BL0012</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <!-- 体积优化：WASM bundle IL 全量裁剪 + 去 ICU（宿主模型下仅客户端需要，
+         服务端保持框架依赖，不做 self-contained 捆绑运行时）。
+         实测（Docker 等价发布）：75→52 个 wasm，raw 15MB→8.5MB，gz 5.8MB→3.1MB，
+         AngleSharp/AngleSharp.Css/HtmlSanitizer/Markdig/Ical.Net/FluentValidation 全被裁掉。
+         档位必须用 full：partial 不删未引用程序集，上述包全部回来（93 个文件、
+         raw 19MB+），程序集级收益归零，已实测否决。
+         full 的方法级裁剪会删掉仅由运行时反射触达的成员（STJ 反序列化所需的
+         DTO 构造函数、组件库 JS interop 的配置载荷 record），两类断裂均只在
+         浏览器交互端暴露、SSR 冒烟测不出——用 TrimRoots.xml 把本工程与
+         AtomUpdate.Core 整体设为 root，并对库的 4 个 JsConfig record 精确保留。
+         未来若 ApiClient 与库 interop 全面转向 JsonSerializerContext 源生成，
+         可收缩保留范围，full 裁剪还能再压一档。 -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!-- 统一 Blazor Web App 模型下客户端组件由服务端按类型名激活，ILLink 静态可达性
+       分析看不到这类引用，full 模式会把客户端程序集整体裁空（实测 305KB→7.6KB，
+       组件全灭）。用根描述符把本程序集整体设为 root，详见 TrimRoots.xml 注释。 -->
+  <ItemGroup>
+    <TrimmerRootDescriptor Include="TrimRoots.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AtomBlazor" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AtomUpdate.Core\AtomUpdate.Core.csproj" />
+    <!-- 注意：勿加 AtomUpdate.Validation——客户端零使用（无 using/无类型引用），
+         加了反而把 FluentValidation 拖进引用闭包（full 裁剪虽会删掉它，
+         partial/未来档位变化时就是纯体积浪费）。服务端在 AtomUpdate.Web 侧引用。 -->
+  </ItemGroup>
+
+</Project>

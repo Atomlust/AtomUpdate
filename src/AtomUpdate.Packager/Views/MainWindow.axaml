@@ -1,0 +1,34 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AtomUpdate.Packager.ViewModels"
+        xmlns:views="using:AtomUpdate.Packager.Views"
+        xmlns:ext="using:AtomUpdate.Packager.Localization"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="860" d:DesignHeight="720"
+        x:Class="AtomUpdate.Packager.Views.MainWindow"
+        x:DataType="vm:WizardViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Width="860" Height="720"
+        Title="{ext:Loc AppTitle}">
+
+  <Design.DataContext>
+    <vm:WizardViewModel />
+  </Design.DataContext>
+
+  <DockPanel>
+    <!-- 语言/主题（docs/05 §13 MVP 结构） -->
+    <Menu DockPanel.Dock="Top">
+      <MenuItem Header="{ext:Loc Language}">
+        <MenuItem Header="中文" Click="LanguageZhClick" />
+        <MenuItem Header="English" Click="LanguageEnClick" />
+      </MenuItem>
+      <MenuItem Header="{ext:Loc Theme}">
+        <MenuItem Header="{ext:Loc ThemeLight}" Click="ThemeLightClick" />
+        <MenuItem Header="{ext:Loc ThemeDark}" Click="ThemeDarkClick" />
+      </MenuItem>
+    </Menu>
+    <views:WizardView />
+  </DockPanel>
+
+</Window>

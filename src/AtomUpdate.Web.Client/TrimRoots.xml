@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ILLink 根描述符（TrimmerRootDescriptor）——配合 PublishTrimmed/TrimMode=full 使用。
+
+  背景 1（客户端组件整体保留）：本项目是 .NET 8+ 统一 Blazor Web App 模型
+  （服务端 AddInteractiveWebAssemblyComponents），浏览器进入 WASM 交互模式后，
+  客户端 Razor 组件（Routes / MainLayout / 各 Pages / Components）是由服务端下发的
+  组件标记「按类型名」在客户端程序集中激活的——ILLink 的静态可达性分析看不到
+  这类引用，full 模式会把客户端程序集整体裁空（实测 305KB -> 7.6KB，页面全灭）。
+  Router 还需在程序集内扫描 RouteAttribute，类型与属性必须完整。
+
+  背景 2（STJ 反射面保留）：ApiClient 走 System.Text.Json 反射序列化
+  （AtomUpdateJson.Create()：Web 默认 + JsonStringEnumConverter，无源生成上下文），
+  full 的方法级裁剪会删掉仅由运行时反射触达的成员，浏览器交互端才炸
+  （SSR 冒烟测不出）：
+    a) DTO 构造函数——响应类型仅由 STJ 在运行时反射实例化；
+       实测抛 NotSupportedException: DeserializeNoConstructor
+       （AtomUpdate.Core.Models.Manage.SetupStatusResponse，登录页首个 API 调用）
+    b) 组件库 JS interop 的配置载荷——Input/InputField/InputGroup*/NumericInput/
+       CurrencyInput/Textarea 的 GetJsConfig() 原返回匿名类型，经 InvokeVoidAsync
+       传给 JS，STJ 为其构建 TypeInfo 时同样失败（实测 <>f__AnonymousType2
+       抛相同异常）。已在库侧改为命名 record（AtomBlazor 的
+       TextInputJsConfig/InputFieldJsConfig/NumericInputJsConfig/TextareaJsConfig），
+       此处按稳定全名精确定留其构造函数与属性 getter。
+
+  为什么不能整体保留 AtomBlazor：preserve="all" 会把库内
+  Markdown/Calendar/HTML 净化等组件一并变成根，其静态引用把库依赖的
+  Markdig/HtmlSanitizer/Ical.Net/AngleSharp 全部拖回可达图
+  （实测 52 个 wasm/raw 8.5MB -> 67 个/15.5MB，比不裁还大）。故只保留
+  上述 4 个载荷类型。AtomUpdate.Core 无任何包引用，整体保留是廉价安全的。
+
+  已实测否决的方案：TrimMode=partial——不删未引用程序集，AngleSharp/Markdig/
+  HtmlSanitizer/FluentValidation/Ical.Net 全部回来（raw 19MB+），程序集级
+  收益归零，不可用。
+
+  未来若 ApiClient 与库 interop 全面转向 JsonSerializerContext 源生成，
+  可移除 Core 保留与 4 个载荷类型保留，full 裁剪还能再压一档。
+
+  注：组件库改由 NuGet 包 AtomBlazor 0.2.0 提供（曾为本地源码工程引用），
+  包内组件位于根命名空间 AtomBlazor，下列类型全名已随包更新；若将来库发布
+  新版调整了命名空间/类型名，须同步更新本文件，否则 JS interop 会在浏览器端
+  静默断裂（SSR 冒烟测不出）。
+-->
+<linker>
+  <!-- 客户端组件 + 应用代码（含 Settings 等页面传给 ApiClient 的匿名类型） -->
+  <assembly fullname="AtomUpdate.Web.Client" preserve="all" />
+  <!-- STJ 反射反序列化的 DTO（请求/响应模型） -->
+  <assembly fullname="AtomUpdate.Core" preserve="all" />
+  <!-- 组件库 JS interop 配置载荷（原匿名类型，为可被根描述符定位改为命名 record） -->
+  <type fullname="AtomBlazor.TextInputJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.InputFieldJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.NumericInputJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.TextareaJsConfig" preserve="all" />
+</linker>

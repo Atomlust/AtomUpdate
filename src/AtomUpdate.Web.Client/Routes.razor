@@ -1,0 +1,16 @@
+@* ToastProvider / DialogProvider / PortalHost 为各浮层（Toast / Dialog / Popover 等）的渲染宿主，
+   置于 Router 之外、根级一次渲染即可（无需随导航重建）。AtomBlazor 无 AppProvider 包装概念：
+   主题由 ThemeService + html[data-theme] 驱动，门户由 PortalHost（Container + Overlay 合一）承载。 *@
+@* PortalHost 仅在 Primitives 有（根命名空间无同名标签），故本文件局部导入；
+   不可上移到 _Imports——会与主包组件标签冲突（RZ9985）。 *@
+@using AtomBlazor.Primitives
+<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>
+
+<ToastProvider Position="ToastPosition.TopCenter" />
+<DialogProvider />
+<PortalHost />

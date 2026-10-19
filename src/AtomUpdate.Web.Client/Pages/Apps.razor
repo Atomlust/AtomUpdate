@@ -1,0 +1,675 @@
+@page "/apps"
+@inject ApiClient Api
+@inject ToastService Toast
+
+<PageTitle>应用 - AtomUpdate 管理后台</PageTitle>
+
+<PageContainer Title="应用" Description="列出当前租户全部应用，可按项目、类型、名称 / AppId 检索">
+    <Extra>
+        <Button Variant="ButtonVariant.Default" OnClick="OpenCreate">新建应用</Button>
+    </Extra>
+
+    <ChildContent>
+        @* 用原生 form 包裹检索区：回车即查询，无需组件库额外的 OnPressEnter 能力 *@
+        <form class="au-query" @onsubmit="OnSearchAsync" @onsubmit:preventDefault>
+                <div class="au-field">
+                    <span class="au-field-label">项目</span>
+                    <Select TValue="long?" Value="_projectId" ValueChanged="OnProjectFilterChangedAsync">
+                        <SelectTrigger>
+                            <SelectValue Placeholder="全部项目" TValue="long?" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem Value="@((long?)null)" Text="全部项目" TValue="long?">全部项目</SelectItem>
+                            @foreach (var project in _projects)
+                            {
+                                <SelectItem Value="@((long?)project.Id)" Text="@($"{project.Name}（{project.Key}）")" TValue="long?">
+                                    @($"{project.Name}（{project.Key}）")
+                                </SelectItem>
+                            }
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div class="au-field">
+                    <span class="au-field-label">类型</span>
+                    <Select TValue="AppType?" Value="_type" ValueChanged="OnTypeFilterChangedAsync">
+                        <SelectTrigger>
+                            <SelectValue Placeholder="全部类型" TValue="AppType?" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem Value="@((AppType?)null)" Text="全部类型" TValue="AppType?">全部类型</SelectItem>
+                            @foreach (var option in AllTypes)
+                            {
+                                <SelectItem Value="@((AppType?)option.Value)" Text="@option.Label" TValue="AppType?">@option.Label</SelectItem>
+                            }
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div class="au-field">
+                    <span class="au-field-label">关键字</span>
+                    <Input Type="InputType.Text" @bind-Value="_keyword" Placeholder="名称或 AppId 关键字" />
+                </div>
+                <div class="au-field au-field-actions">
+                    <Button Type="ButtonType.Submit" Variant="ButtonVariant.Default">查询</Button>
+                    <Button Type="ButtonType.Button" Variant="ButtonVariant.Outline" OnClick="ResetFiltersAsync">重置</Button>
+                </div>
+            </form>
+
+            <Separator Class="au-divider-query" />
+
+            <div class="au-toolbar">
+                <span class="au-meta">共 @_total 条 · 第 @_page / @LastPage 页</span>
+            </div>
+
+            <DataTable TData="AppDto" Data="_items" ShowToolbar="false" ShowPagination="false" InitialPageSize="200" IsLoading="_loading">
+                <Columns>
+                    <DataTableColumn TData="AppDto" TValue="string" Property="@(c => c.AppId)" Header="AppId" />
+                    <DataTableColumn TData="AppDto" TValue="string" Property="@(c => c.Name)" Header="名称" />
+                    <DataTableColumn TData="AppDto" TValue="string" Property="@(c => c.ProjectName ?? string.Empty)" Header="所属项目" />
+                    <DataTableColumn TData="AppDto" TValue="AppType" Property="@(c => c.Type)" Header="类型" />
+                    <DataTableColumn TData="AppDto" TValue="UpdatePlatform" Property="@(c => c.Platform)" Header="平台">
+                        <CellTemplate Context="row">
+                            <Badge Variant="BadgeVariant.Secondary">@EnumLabels.Platform(row!.Platform)</Badge>
+                        </CellTemplate>
+                    </DataTableColumn>
+                    <DataTableColumn TData="AppDto" TValue="EntityStatus" Property="@(c => c.Status)" Header="状态">
+                        <CellTemplate Context="row">
+                            <Badge Variant="@(row!.Status == EntityStatus.Active ? BadgeVariant.SoftSuccess : BadgeVariant.SoftDestructive)">@row.Status</Badge>
+                        </CellTemplate>
+                    </DataTableColumn>
+                    <DataTableColumn TData="AppDto" TValue="string" Property="@(c => c.Name)" Header="操作">
+                        <CellTemplate Context="row">
+                            <div class="au-row-actions">
+                                <Button Variant="ButtonVariant.Link" OnClick="x => OpenEdit(row!)">编辑</Button>
+                                <Button Variant="ButtonVariant.Link" OnClick="x => OpenPolicyAsync(row!)">策略</Button>
+                                <Button Variant="ButtonVariant.Link" Class="au-link-danger" OnClick="x => AskDelete(row!)">删除</Button>
+                            </div>
+                        </CellTemplate>
+                    </DataTableColumn>
+                </Columns>
+        </DataTable>
+
+        <div class="au-toolbar au-pager">
+            <span class="au-spacer"></span>
+            <div class="au-btn-row">
+                <Button Disabled="_page <= 1 || _loading" OnClick="x => GoAsync(_page - 1)">上一页</Button>
+                <span class="au-meta">第 @_page 页 / 共 @LastPage 页（@_total 条）</span>
+                <Button Disabled="_page >= LastPage || _loading" OnClick="x => GoAsync(_page + 1)">下一页</Button>
+            </div>
+        </div>
+
+        <Dialog @bind-Open="_deleteDialogOpen">
+            <DialogContent Class="au-dialog">
+                <DialogHeader>
+                    <DialogTitle>确认删除</DialogTitle>
+                </DialogHeader>
+                <p class="au-state-desc">确定要删除应用「@(_deleting?.Name)」吗？应用下不能有版本记录；应用的更新策略与 API Key 将一并删除，此操作不可恢复。</p>
+                <DialogFooter>
+                    <DialogClose AsChild>
+                        <Button Variant="ButtonVariant.Outline">取消</Button>
+                    </DialogClose>
+                    <Button Variant="ButtonVariant.Destructive" OnClick="DeleteAsync" Disabled="_deleting is null || _saving">
+                        @(_saving ? "删除中…" : "确认删除")
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    </ChildContent>
+</PageContainer>
+
+<Dialog @bind-Open="_policyOpen">
+    <DialogContent Class="au-dialog au-dialog-wide">
+        <DialogHeader>
+            <DialogTitle>更新策略 - @(_policyApp?.Name)</DialogTitle>
+        </DialogHeader>
+        <div class="au-policy-groups">
+            <h4 class="au-policy-group-title">轮询</h4>
+            <div class="au-query">
+                <div class="au-field">
+                    <span class="au-field-label">启用轮询</span>
+                    <Switch @bind-Checked="_policy.PollingEnabled" />
+                </div>
+                <div class="au-field">
+                    <span class="au-field-label">轮询间隔（分钟）</span>
+                    <NumericInput TValue="int" @bind-Value="_policy.PollingIntervalMinutes" Min="1" />
+                </div>
+                <div class="au-field">
+                    <span class="au-field-label">抖动（分钟）</span>
+                    <NumericInput TValue="int" @bind-Value="_policy.PollingJitterMinutes" Min="0" />
+                </div>
+            </div>
+
+            <h4 class="au-policy-group-title">下载触发</h4>
+            <div class="au-check-grid">
+                <div class="au-check">
+                    <Checkbox Id="dl-startup" @bind-Checked="_policy.DownloadOnStartup" />
+                    <label for="dl-startup">启动时</label>
+                </div>
+                <div class="au-check">
+                    <Checkbox Id="dl-polling" @bind-Checked="_policy.DownloadOnPolling" />
+                    <label for="dl-polling">轮询发现</label>
+                </div>
+                <div class="au-check">
+                    <Checkbox Id="dl-manual" @bind-Checked="_policy.DownloadOnManualCheck" />
+                    <label for="dl-manual">手动检查</label>
+                </div>
+                <div class="au-check">
+                    <Checkbox Id="dl-force" @bind-Checked="_policy.DownloadOnForceUpdate" />
+                    <label for="dl-force">强制更新</label>
+                </div>
+                <div class="au-check">
+                    <Checkbox Id="dl-network" @bind-Checked="_policy.DownloadOnNetworkRecovery" />
+                    <label for="dl-network">网络恢复</label>
+                </div>
+                <div class="au-check">
+                    <Checkbox Id="dl-resume" @bind-Checked="_policy.DownloadOnResume" />
+                    <label for="dl-resume">休眠恢复</label>
+                </div>
+            </div>
+
+            <h4 class="au-policy-group-title">安装</h4>
+            <div class="au-query">
+                <div class="au-field">
+                    <span class="au-field-label">安装模式</span>
+                    <Select @bind-Value="_policy.InstallMode" TValue="InstallMode">
+                        <SelectTrigger>
+                            <SelectValue TValue="InstallMode" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem Value="@InstallMode.Manual" Text="用户手动" TValue="InstallMode">用户手动</SelectItem>
+                            <SelectItem Value="@InstallMode.OnRestart" Text="重启时" TValue="InstallMode">重启时</SelectItem>
+                            <SelectItem Value="@InstallMode.Immediate" Text="立即" TValue="InstallMode">立即</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div class="au-field">
+                    <span class="au-field-label">允许强制更新</span>
+                    <Switch @bind-Checked="_policy.AllowForceUpdate" />
+                </div>
+                <div class="au-field">
+                    <span class="au-field-label">允许降级提示</span>
+                    <Switch @bind-Checked="_policy.AllowDowngrade" />
+                </div>
+                <div class="au-field">
+                    <span class="au-field-label">允许暂缓</span>
+                    <Switch @bind-Checked="_policy.AllowPostpone" />
+                </div>
+                <div class="au-field">
+                    <span class="au-field-label">最大暂缓次数</span>
+                    <NumericInput TValue="int" @bind-Value="_policy.MaxPostponeCount" Min="0" />
+                </div>
+                <div class="au-field">
+                    <span class="au-field-label">允许计费网络</span>
+                    <Switch @bind-Checked="_policy.AllowMeteredNetwork" />
+                </div>
+                <div class="au-field">
+                    <span class="au-field-label">限速（KB/s，0 不限）</span>
+                    <NumericInput TValue="int" @bind-Value="_policy.MaxDownloadSpeedKBps" Min="0" />
+                </div>
+            </div>
+            <p class="au-meta">策略版本以服务端为准，保存后自动递增（policyVersion）。</p>
+        </div>
+        <DialogFooter>
+            <DialogClose AsChild>
+                <Button Variant="ButtonVariant.Outline">取消</Button>
+            </DialogClose>
+            <Button Variant="ButtonVariant.Default" OnClick="SavePolicyAsync" Disabled="_saving">
+                @(_saving ? "保存中…" : "保存")
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
+
+<Dialog @bind-Open="_appDialogOpen">
+    <DialogContent Class="au-dialog">
+        <DialogHeader>
+            <DialogTitle>@(_editing is null ? "新建应用" : "编辑应用")</DialogTitle>
+        </DialogHeader>
+        <EditForm Model="_form" OnSubmit="SubmitAppAsync">
+            @if (_editing is null)
+            {
+                <Field>
+                    <FieldLabel For="app-project">所属项目</FieldLabel>
+                    <FieldContent>
+                        <Select @bind-Value="_form.ProjectId" TValue="long?">
+                            <SelectTrigger>
+                                <SelectValue Placeholder="选择项目" TValue="long?" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                @foreach (var project in _projects)
+                                {
+                                    <SelectItem Value="@((long?)project.Id)" Text="@($"{project.Name}（{project.Key}）")" TValue="long?">
+                                        @($"{project.Name}（{project.Key}）")
+                                    </SelectItem>
+                                }
+                            </SelectContent>
+                        </Select>
+                    </FieldContent>
+                </Field>
+                <Field>
+                    <FieldLabel For="app-id">AppId（业务标识）</FieldLabel>
+                    <FieldContent>
+                        <Input Id="app-id" Type="InputType.Text" @bind-Value="_form.AppId" Placeholder="com.example.app" />
+                    </FieldContent>
+                </Field>
+                <Field>
+                    <FieldLabel For="app-platform">平台（一个应用只服务一个平台，创建后不可改）</FieldLabel>
+                    <FieldContent>
+                        <Select @bind-Value="_form.Platform" TValue="UpdatePlatform">
+                            <SelectTrigger>
+                                <SelectValue TValue="UpdatePlatform" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem Value="@UpdatePlatform.Windows" Text="Windows" TValue="UpdatePlatform">Windows</SelectItem>
+                                <SelectItem Value="@UpdatePlatform.Macos" Text="macOS" TValue="UpdatePlatform">macOS</SelectItem>
+                                <SelectItem Value="@UpdatePlatform.Linux" Text="Linux" TValue="UpdatePlatform">Linux</SelectItem>
+                                <SelectItem Value="@UpdatePlatform.Ios" Text="iOS" TValue="UpdatePlatform">iOS</SelectItem>
+                                <SelectItem Value="@UpdatePlatform.Android" Text="Android" TValue="UpdatePlatform">Android</SelectItem>
+                                <SelectItem Value="@UpdatePlatform.HarmonyOS" Text="鸿蒙" TValue="UpdatePlatform">鸿蒙</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </FieldContent>
+                </Field>
+            }
+            <Field>
+                <FieldLabel For="app-name">名称</FieldLabel>
+                <FieldContent>
+                    <Input Id="app-name" Type="InputType.Text" @bind-Value="_form.Name" />
+                </FieldContent>
+            </Field>
+            <Field>
+                <FieldLabel For="app-type">类型</FieldLabel>
+                <FieldContent>
+                    <Select @bind-Value="_form.Type" TValue="AppType">
+                        <SelectTrigger>
+                            <SelectValue TValue="AppType" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            @foreach (var option in AllTypes)
+                            {
+                                <SelectItem Value="@option.Value" Text="@option.Label" TValue="AppType">@option.Label</SelectItem>
+                            }
+                        </SelectContent>
+                    </Select>
+                </FieldContent>
+            </Field>
+            @if (_editing is not null)
+            {
+                <Field>
+                    <FieldLabel>平台（创建后不可改）</FieldLabel>
+                    <FieldContent>
+                        <div class="au-field-value">@EnumLabels.Platform(_editing.Platform)</div>
+                    </FieldContent>
+                </Field>
+                <Field>
+                    <FieldLabel For="app-status">状态</FieldLabel>
+                    <FieldContent>
+                        <Select @bind-Value="_form.Status" TValue="EntityStatus">
+                            <SelectTrigger>
+                                <SelectValue TValue="EntityStatus" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem Value="@EntityStatus.Active" Text="启用" TValue="EntityStatus">启用</SelectItem>
+                                <SelectItem Value="@EntityStatus.Disabled" Text="停用" TValue="EntityStatus">停用</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </FieldContent>
+                </Field>
+            }
+        </EditForm>
+        <DialogFooter>
+            <DialogClose AsChild>
+                <Button Variant="ButtonVariant.Outline">取消</Button>
+            </DialogClose>
+            <Button Variant="ButtonVariant.Default" OnClick="SaveAsync" Disabled="_saving">
+                @(_saving ? "保存中…" : "保存")
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
+
+@code {
+    private static readonly (AppType Value, string Label)[] AllTypes =
+    [
+        (AppType.Desktop, "桌面"),
+        (AppType.Console, "控制台"),
+        (AppType.AppService, "应用服务"),
+        (AppType.App, "通用/移动客户端")
+    ];
+
+    private const int PageSize = 20;
+
+    private List<AppDto> _items = [];
+    private List<ProjectDto> _projects = [];
+    private int _total;
+    private long? _projectId;
+    private AppType? _type;
+    private string _keyword = "";
+    private bool _loading;
+    private int _page = 1;
+    private bool _appDialogOpen;
+    private bool _deleteDialogOpen;
+    private bool _saving;
+    private AppDto? _editing;
+    private AppDto? _deleting;
+    private AppForm _form = new();
+
+    private int LastPage => Math.Max(1, (int)Math.Ceiling(_total / (double)PageSize));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadProjectsAsync();
+        await LoadAsync(1);
+    }
+
+    private async Task LoadProjectsAsync()
+    {
+        var result = await Api.GetAsync<PagedResult<ProjectDto>>($"{ApiRoutes.ManagePrefix}/projects?page=1&pageSize=200");
+        if (result.IsSuccess && result.Data is not null)
+        {
+            _projects = result.Data.Items.ToList();
+        }
+    }
+
+    private Task OnProjectFilterChangedAsync(long? projectId)
+    {
+        _projectId = projectId;
+        return LoadAsync(1);
+    }
+
+    private Task OnTypeFilterChangedAsync(AppType? type)
+    {
+        _type = type;
+        return LoadAsync(1);
+    }
+
+    private Task OnSearchAsync() => LoadAsync(1);
+
+    private Task ResetFiltersAsync()
+    {
+        _projectId = null;
+        _type = null;
+        _keyword = "";
+        return LoadAsync(1);
+    }
+
+    private Task GoAsync(int page) => LoadAsync(page);
+
+    private async Task LoadAsync(int page)
+    {
+        _loading = true;
+        try
+        {
+            var url = $"{ApiRoutes.ManagePrefix}/apps?page={page}&pageSize={PageSize}";
+            if (_projectId is { } projectId)
+            {
+                url += $"&projectId={projectId}";
+            }
+
+            if (_type is { } type)
+            {
+                url += $"&type={type}";
+            }
+
+            if (_keyword?.Trim() is { Length: > 0 } keyword)
+            {
+                url += $"&keyword={Uri.EscapeDataString(keyword)}";
+            }
+
+            var result = await Api.GetAsync<PagedResult<AppDto>>(url);
+            if (result.IsSuccess && result.Data is not null)
+            {
+                _items = result.Data.Items.ToList();
+                _total = result.Data.Total;
+                _page = page;
+            }
+            else
+            {
+                Toast.Error(result.ErrorMessage ?? "加载应用失败", "加载失败");
+            }
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void AskDelete(AppDto app)
+    {
+        _deleting = app;
+        _deleteDialogOpen = true;
+    }
+
+    /// <summary>受限删除：后端仅允许删除无版本记录的应用（409 提示先删版本），级联清理策略与 API Key。</summary>
+    private async Task DeleteAsync()
+    {
+        if (_deleting is null)
+        {
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var result = await Api.SendAsync<object>(HttpMethod.Delete,
+                $"{ApiRoutes.ManagePrefix}/projects/{_deleting.ProjectId}/apps/{_deleting.Id}");
+            _deleteDialogOpen = false;
+            if (result.IsSuccess)
+            {
+                Toast.Success("已删除");
+                await LoadAsync(_page);
+            }
+            else
+            {
+                Toast.Error(result.ErrorMessage ?? "删除应用失败", "删除失败");
+            }
+        }
+        finally
+        {
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OpenCreate()
+    {
+        _editing = null;
+        // 新建与检索互不依赖：默认项目跟随检索条件（有则预填，无则在弹窗里选）
+        _form = new AppForm { ProjectId = _projectId };
+        _appDialogOpen = true;
+    }
+
+    private void OpenEdit(AppDto app)
+    {
+        _editing = app;
+        _form = new AppForm
+        {
+            AppId = app.AppId,
+            Name = app.Name,
+            Type = app.Type,
+            Status = app.Status
+        };
+        _appDialogOpen = true;
+    }
+
+    private async Task SubmitAppAsync(EditContext context)
+    {
+        await SaveAsync();
+    }
+
+    private AppDto? _policyApp;
+    private bool _policyOpen;
+    private PolicyForm _policy = new();
+
+    private async Task OpenPolicyAsync(AppDto app)
+    {
+        _policyApp = app;
+        var result = await Api.GetAsync<PolicyDto>($"{ApiRoutes.ManagePrefix}/apps/{app.Id}/policy");
+        if (!result.IsSuccess || result.Data is null)
+        {
+            Toast.Error(result.ErrorMessage ?? "策略加载失败", "加载失败");
+            return;
+        }
+
+        var p = result.Data;
+        _policy = new PolicyForm
+        {
+            PollingEnabled = p.PollingEnabled,
+            PollingIntervalMinutes = p.PollingIntervalMinutes,
+            PollingJitterMinutes = p.PollingJitterMinutes,
+            DownloadOnStartup = p.DownloadOnStartup,
+            DownloadOnPolling = p.DownloadOnPolling,
+            DownloadOnManualCheck = p.DownloadOnManualCheck,
+            DownloadOnForceUpdate = p.DownloadOnForceUpdate,
+            DownloadOnNetworkRecovery = p.DownloadOnNetworkRecovery,
+            DownloadOnResume = p.DownloadOnResume,
+            InstallMode = p.InstallMode,
+            AllowForceUpdate = p.AllowForceUpdate,
+            AllowDowngrade = p.AllowDowngrade,
+            AllowPostpone = p.AllowPostpone,
+            MaxPostponeCount = p.MaxPostponeCount,
+            AllowMeteredNetwork = p.AllowMeteredNetwork,
+            MaxDownloadSpeedKBps = p.MaxDownloadSpeedKBps
+        };
+        _policyOpen = true;
+    }
+
+    private async Task SavePolicyAsync()
+    {
+        if (_policyApp is null)
+        {
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var result = await Api.SendAsync<PolicyDto>(HttpMethod.Patch,
+                $"{ApiRoutes.ManagePrefix}/apps/{_policyApp.Id}/policy",
+                new PolicyUpdateRequest
+                {
+                    PollingEnabled = _policy.PollingEnabled,
+                    PollingIntervalMinutes = _policy.PollingIntervalMinutes,
+                    PollingJitterMinutes = _policy.PollingJitterMinutes,
+                    DownloadOnStartup = _policy.DownloadOnStartup,
+                    DownloadOnPolling = _policy.DownloadOnPolling,
+                    DownloadOnManualCheck = _policy.DownloadOnManualCheck,
+                    DownloadOnForceUpdate = _policy.DownloadOnForceUpdate,
+                    DownloadOnNetworkRecovery = _policy.DownloadOnNetworkRecovery,
+                    DownloadOnResume = _policy.DownloadOnResume,
+                    InstallMode = _policy.InstallMode,
+                    AllowForceUpdate = _policy.AllowForceUpdate,
+                    AllowDowngrade = _policy.AllowDowngrade,
+                    AllowPostpone = _policy.AllowPostpone,
+                    MaxPostponeCount = _policy.MaxPostponeCount,
+                    AllowMeteredNetwork = _policy.AllowMeteredNetwork,
+                    MaxDownloadSpeedKBps = _policy.MaxDownloadSpeedKBps
+                });
+            if (!result.IsSuccess)
+            {
+                Toast.Error(result.ErrorMessage ?? "保存失败", "保存失败");
+                return;
+            }
+
+            _policyOpen = false;
+            Toast.Success("策略已保存（版本自动递增）");
+        }
+        finally
+        {
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_editing is null && _form.ProjectId is null)
+        {
+            Toast.Error("请选择所属项目");
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            if (_editing is null)
+            {
+                var created = await Api.SendAsync<AppDto>(HttpMethod.Post,
+                    $"{ApiRoutes.ManagePrefix}/projects/{_form.ProjectId!.Value}/apps",
+                    new AppCreateRequest
+                    {
+                        AppId = _form.AppId,
+                        Name = _form.Name,
+                        Type = _form.Type,
+                        // 平台决定该应用全部版本包的归属，创建后不可改（07 Q24）
+                        Platform = _form.Platform
+                    });
+                if (!created.IsSuccess)
+                {
+                    Toast.Error(created.ErrorMessage ?? "保存失败", "保存失败");
+                    return;
+                }
+            }
+            else
+            {
+                var updated = await Api.SendAsync<AppDto>(HttpMethod.Patch,
+                    $"{ApiRoutes.ManagePrefix}/apps/{_editing.Id}",
+                    new AppUpdateRequest
+                    {
+                        Name = _form.Name,
+                        Type = _form.Type,
+                        Status = _form.Status
+                    });
+                if (!updated.IsSuccess)
+                {
+                    Toast.Error(updated.ErrorMessage ?? "保存失败", "保存失败");
+                    return;
+                }
+            }
+
+            _appDialogOpen = false;
+            Toast.Success("已保存");
+            await LoadAsync(_page);
+        }
+        finally
+        {
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private sealed class PolicyForm
+    {
+        public bool PollingEnabled { get; set; } = true;
+        public int PollingIntervalMinutes { get; set; } = 60;
+        public int PollingJitterMinutes { get; set; }
+        public bool DownloadOnStartup { get; set; }
+        public bool DownloadOnPolling { get; set; } = true;
+        public bool DownloadOnManualCheck { get; set; } = true;
+        public bool DownloadOnForceUpdate { get; set; } = true;
+        public bool DownloadOnNetworkRecovery { get; set; }
+        public bool DownloadOnResume { get; set; }
+        public InstallMode InstallMode { get; set; } = InstallMode.OnRestart;
+        public bool AllowForceUpdate { get; set; } = true;
+        public bool AllowDowngrade { get; set; }
+        public bool AllowPostpone { get; set; } = true;
+        public int MaxPostponeCount { get; set; } = 3;
+        public bool AllowMeteredNetwork { get; set; }
+        public int MaxDownloadSpeedKBps { get; set; }
+    }
+
+    private sealed class AppForm
+    {
+        public long? ProjectId { get; set; }
+        public string AppId { get; set; } = "";
+        public string Name { get; set; } = "";
+        public AppType Type { get; set; } = AppType.Desktop;
+        public UpdatePlatform Platform { get; set; } = UpdatePlatform.Windows;
+        public EntityStatus Status { get; set; } = EntityStatus.Active;
+    }
+}

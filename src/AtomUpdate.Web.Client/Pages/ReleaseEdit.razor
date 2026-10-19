@@ -1,0 +1,211 @@
+@page "/releases/{ReleaseId:long}/edit"
+@inject ApiClient Api
+@inject ToastService Toast
+@inject NavigationManager Navigation
+
+<PageTitle>编辑草稿 - AtomUpdate 管理后台</PageTitle>
+
+<PageContainer Title="@($"编辑草稿 {(_release?.Version ?? ReleaseId.ToString())}")"
+               Description="仅草稿 / 预发布版本可修改构建号、最低支持版本、强制更新与更新日志">
+    <Extra>
+        <div class="au-form-actions">
+            <Button Variant="ButtonVariant.Default" Disabled="_saving || _release is null" OnClick="SaveAsync">@(_saving ? "保存中…" : "保存")</Button>
+            <Button Variant="ButtonVariant.Outline" OnClick="Cancel">取消</Button>
+        </div>
+    </Extra>
+
+    <ChildContent>
+        @if (_error is { } error)
+        {
+            <div class="au-state-block">
+                <span class="au-state-title">@error</span>
+                <Button Variant="ButtonVariant.Default" OnClick="@(() => Navigation.NavigateTo("/releases"))">返回版本列表</Button>
+            </div>
+        }
+        else if (_release is { } release)
+        {
+            <ul class="au-detail-list">
+                <li><b>版本号：</b>@release.Version</li>
+                <li><b>平台（来自应用）：</b>@PlatformText</li>
+                <li><b>包架构：</b>@EnumLabels.Archs(release.Assets)</li>
+                <li><b>状态：</b>@release.Status</li>
+            </ul>
+
+            <Separator />
+
+            <div class="au-form-grid">
+                <Field>
+                    <FieldLabel For="re-build">构建号</FieldLabel>
+                    <FieldContent>
+                        @* AtomBlazor 的 NumericInput<TValue> 要求 TValue : struct（不支持 int?），
+                           可空语义经 Value/ValueChanged 桥接保住：0 视作未填写（null）。 *@
+                        <NumericInput TValue="int" Id="re-build" Value="_form.BuildNumber ?? 0" ValueChanged="OnBuildNumberChanged" />
+                    </FieldContent>
+                </Field>
+                <Field>
+                    <FieldLabel For="re-min">最低支持版本</FieldLabel>
+                    <FieldContent>
+                        <Input Id="re-min" Type="InputType.Text" @bind-Value="_form.MinSupportedVersion" Placeholder="1.0.0" />
+                    </FieldContent>
+                </Field>
+                <Field>
+                    <FieldLabel For="re-force">强制更新</FieldLabel>
+                    <FieldContent>
+                        <Switch Id="re-force" @bind-Checked="_form.ForceUpdate" />
+                    </FieldContent>
+                </Field>
+            </div>
+            <div>
+                <p class="au-form-hint">每行一条，行内支持 Markdown；留空的小节不会显示在版本说明中。</p>
+                <div class="au-notes-grid">
+                    <Field>
+                        <FieldLabel For="re-note-added">新增</FieldLabel>
+                        <FieldContent>
+                            <Textarea Id="re-note-added" @bind-Value="_form.NoteAdded" Rows="6" />
+                        </FieldContent>
+                    </Field>
+                    <Field>
+                        <FieldLabel For="re-note-improved">优化</FieldLabel>
+                        <FieldContent>
+                            <Textarea Id="re-note-improved" @bind-Value="_form.NoteImproved" Rows="6" />
+                        </FieldContent>
+                    </Field>
+                    <Field>
+                        <FieldLabel For="re-note-fixed">修复</FieldLabel>
+                        <FieldContent>
+                            <Textarea Id="re-note-fixed" @bind-Value="_form.NoteFixed" Rows="6" />
+                        </FieldContent>
+                    </Field>
+                    <Field>
+                        <FieldLabel For="re-note-noticed">注意</FieldLabel>
+                        <FieldContent>
+                            <Textarea Id="re-note-noticed" @bind-Value="_form.NoteNoticed" Rows="6" />
+                        </FieldContent>
+                    </Field>
+                </div>
+            </div>
+        }
+    </ChildContent>
+</PageContainer>
+
+@code {
+    [Parameter]
+    public long ReleaseId { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "projectId")]
+    public long? QueryProjectId { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "appId")]
+    public long? QueryAppId { get; set; }
+
+    private ReleaseDto? _release;
+    private string? _error;
+    private bool _saving;
+    private UpdatePlatform? _platform;
+    private FormModel _form = new();
+
+    private ReleaseScope? Scope => ReleaseScope.TryCreate(QueryProjectId, QueryAppId);
+
+    private string PlatformText => _platform is { } p ? EnumLabels.Platform(p) : "—";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        if (Scope is not { } scope)
+        {
+            _error = "缺少 projectId / appId 参数，请从版本列表进入";
+            StateHasChanged();
+            return;
+        }
+
+        var (release, error) = await scope.FindAsync(Api, ReleaseId);
+        if (release is null)
+        {
+            _error = error;
+            StateHasChanged();
+            return;
+        }
+
+        if (release.Status is not (ReleaseStatus.Draft or ReleaseStatus.Prerelease))
+        {
+            _error = $"版本 {release.Version} 当前为 {release.Status}，不可编辑";
+            StateHasChanged();
+            return;
+        }
+
+        _release = release;
+        _platform = await scope.PlatformAsync(Api);
+        _form = new FormModel
+        {
+            BuildNumber = release.BuildNumber,
+            MinSupportedVersion = release.MinSupportedVersion,
+            ForceUpdate = release.ForceUpdate,
+            NoteAdded = NoteSections.Format(release.Notes?.New),
+            NoteImproved = NoteSections.Format(release.Notes?.Improvements),
+            NoteFixed = NoteSections.Format(release.Notes?.Fixes),
+            NoteNoticed = NoteSections.Format(release.Notes?.Notes)
+        };
+        StateHasChanged();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (Scope is not { } scope || _release is not { } release)
+        {
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var result = await Api.SendAsync<ReleaseDto>(HttpMethod.Patch, scope.ApiUrl(ReleaseId),
+                new ReleaseUpdateRequest
+                {
+                    BuildNumber = _form.BuildNumber,
+                    ForceUpdate = _form.ForceUpdate,
+                    MinSupportedVersion = _form.MinSupportedVersion,
+                    // PATCH 语义是整体重写日志段落：始终下发，四段全空即为清空
+                    Notes = new ReleaseNoteInput
+                    {
+                        Language = release.Notes?.Language ?? "en",
+                        New = NoteSections.Parse(_form.NoteAdded),
+                        Improvements = NoteSections.Parse(_form.NoteImproved),
+                        Fixes = NoteSections.Parse(_form.NoteFixed),
+                        Notes = NoteSections.Parse(_form.NoteNoticed)
+                    }
+                });
+            if (!result.IsSuccess)
+            {
+                Toast.Error(result.ErrorMessage ?? "保存失败", "保存失败");
+                return;
+            }
+
+            Toast.Success("已保存");
+            Navigation.NavigateTo(scope.DetailUrl(ReleaseId));
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void OnBuildNumberChanged(int value) => _form.BuildNumber = value == 0 ? null : value;
+
+    private void Cancel() =>
+        Navigation.NavigateTo(Scope?.DetailUrl(ReleaseId) ?? "/releases");
+
+    private sealed class FormModel
+    {
+        public int? BuildNumber { get; set; }
+        public string? MinSupportedVersion { get; set; }
+        public bool ForceUpdate { get; set; }
+        public string? NoteAdded { get; set; }
+        public string? NoteImproved { get; set; }
+        public string? NoteFixed { get; set; }
+        public string? NoteNoticed { get; set; }
+    }
+}

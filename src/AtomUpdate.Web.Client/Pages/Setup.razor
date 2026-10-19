@@ -1,0 +1,155 @@
+@page "/setup"
+@layout BareLayout
+@inject ApiClient Api
+@inject AuthState Auth
+@inject NavigationManager Navigation
+@inject ToastService Toast
+
+<PageTitle>初始化设置 - AtomUpdate 管理后台</PageTitle>
+
+@* 首次部署设置向导：复用登录页卡片形态（au-login*），创建平台管理员后直接进入后台。 *@
+<div class="au-login">
+    <div class="au-login-header">
+        <span class="au-login-mark">A</span>
+        <span class="au-login-title">AtomUpdate 管理后台</span>
+    </div>
+    <p class="au-login-desc">首次部署：创建平台管理员账号</p>
+
+    <div class="au-login-main">
+        <div class="au-login-card">
+            <div class="au-login-tabs">初始化设置</div>
+            <EditForm Model="_model" OnSubmit="HandleSetupAsync">
+                <Field>
+                    <FieldLabel For="setup-username">用户名（可选）</FieldLabel>
+                    <FieldContent>
+                        <Input Id="setup-username"
+                               Type="InputType.Text"
+                               @bind-Value="_model.UserName"
+                               Placeholder="默认 admin；设置后可用用户名登录"
+                               Disabled="_loading" />
+                    </FieldContent>
+                </Field>
+                <Field>
+                    <FieldLabel For="setup-email">邮箱</FieldLabel>
+                    <FieldContent>
+                        <Input Id="setup-email"
+                               Type="InputType.Email"
+                               @bind-Value="_model.Email"
+                               Placeholder="admin@example.com"
+                               Disabled="_loading" />
+                    </FieldContent>
+                </Field>
+                <Field>
+                    <FieldLabel For="setup-password">密码</FieldLabel>
+                    <FieldContent>
+                        <Input Id="setup-password"
+                               Type="InputType.Password"
+                               @bind-Value="_model.Password"
+                               Placeholder="至少 8 位"
+                               Disabled="_loading" />
+                    </FieldContent>
+                </Field>
+                <Field>
+                    <FieldLabel For="setup-confirm">确认密码</FieldLabel>
+                    <FieldContent>
+                        <Input Id="setup-confirm"
+                               Type="InputType.Password"
+                               @bind-Value="_model.ConfirmPassword"
+                               Placeholder="再次输入密码"
+                               Disabled="_loading" />
+                    </FieldContent>
+                </Field>
+                <Field>
+                    <FieldLabel For="setup-display">显示名（可选）</FieldLabel>
+                    <FieldContent>
+                        <Input Id="setup-display"
+                               Type="InputType.Text"
+                               @bind-Value="_model.DisplayName"
+                               Placeholder="默认「平台管理员」"
+                               Disabled="_loading" />
+                    </FieldContent>
+                </Field>
+                <Button Type="ButtonType.Submit"
+                        Variant="ButtonVariant.Default"
+                        Class="au-btn-block"
+                        Disabled="_loading">
+                    @(_loading ? "初始化中…" : "完成初始化")
+                </Button>
+            </EditForm>
+        </div>
+    </div>
+
+    <div class="au-login-footer">AtomUpdate ©2026</div>
+</div>
+
+@code {
+    private SetupModel _model = new();
+    private bool _loading;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        // 已初始化的系统不可进入向导：已登录回首页，未登录回登录页
+        await Auth.InitializeAsync();
+        var status = await Api.GetSetupStatusAsync();
+        if (status.IsSuccess && status.Data is { Required: false })
+        {
+            Navigation.NavigateTo(Auth.IsAuthenticated ? "/" : "/login", replace: true);
+        }
+    }
+
+    private async Task HandleSetupAsync(EditContext context)
+    {
+        if (!string.Equals(_model.Password, _model.ConfirmPassword, StringComparison.Ordinal))
+        {
+            Toast.Error("两次输入的密码不一致", "请重新输入");
+            return;
+        }
+
+        _loading = true;
+        StateHasChanged();
+        try
+        {
+            var result = await Api.SetupAsync(new SetupRequest
+            {
+                Email = _model.Email,
+                Password = _model.Password,
+                UserName = string.IsNullOrWhiteSpace(_model.UserName) ? null : _model.UserName,
+                DisplayName = string.IsNullOrWhiteSpace(_model.DisplayName) ? null : _model.DisplayName
+            });
+            if (result.IsSuccess)
+            {
+                Navigation.NavigateTo("/", replace: true);
+                return;
+            }
+
+            if (result.ErrorCode == ErrorCodes.Conflict)
+            {
+                // 竞争下被抢先初始化：回登录页
+                Toast.Info("系统已完成初始化", "请使用已有账号登录");
+                Navigation.NavigateTo("/login", replace: true);
+                return;
+            }
+
+            Toast.Error(result.ErrorMessage ?? "请检查输入后重试", "初始化失败");
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private sealed class SetupModel
+    {
+        public string UserName { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+        public string ConfirmPassword { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+    }
+}

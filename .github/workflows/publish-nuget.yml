@@ -1,0 +1,241 @@
+name: Publish NuGet
+
+# 打 tag（如 v0.1.1）触发：构建 + 测试 → 6 RID AOT 更新器 → 内嵌打包
+# → 推送 nuget.org → 创建 GitHub Release（附 nupkg 与说明）→ 追加 docs/RELEASES.md 发布记录并回提 main。
+# 需要仓库 Secret：NUGET_API_KEY（nuget.org 推送密钥）。
+# 版本约束：tag 去掉 v 后必须等于 Directory.Build.props 的 <Version>，不一致直接失败。
+
+on:
+  push:
+    tags: ['v*']
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+permissions:
+  contents: write
+
+jobs:
+  check-version:
+    name: 校验 tag 与工程版本一致
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: 比对 tag 与 Directory.Build.props
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          props="$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)"
+          echo "tag=$tag props=$props"
+          if [ "$tag" != "$props" ]; then
+            echo "::error::tag v$tag 与 Directory.Build.props 版本 $props 不一致，请先改版本号再打 tag"
+            exit 1
+          fi
+
+  updater:
+    name: 构建更新器 (${{ matrix.rid }})
+    needs: check-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            os: windows-latest
+          - rid: win-arm64
+            os: windows-latest
+          - rid: linux-x64
+            os: ubuntu-latest
+          - rid: linux-arm64
+            os: ubuntu-latest
+          - rid: osx-x64
+            os: macos-latest
+          - rid: osx-arm64
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Publish
+        run: dotnet publish src/AtomUpdate.Updater/AtomUpdate.Updater.csproj -c Release -r ${{ matrix.rid }} -p:PublishAot=true -o artifacts/updater/${{ matrix.rid }}/native
+      - uses: actions/upload-artifact@v4
+        with:
+          name: updater-${{ matrix.rid }}
+          path: artifacts/updater/${{ matrix.rid }}/
+
+  build-test:
+    name: 构建与测试
+    needs: check-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore tools
+        run: dotnet tool restore
+      - name: Restore
+        run: dotnet restore AtomUpdate.slnx
+      - name: Build
+        run: dotnet build AtomUpdate.slnx -c Release --no-restore
+      - name: Test
+        run: dotnet test AtomUpdate.slnx -c Release --no-build
+
+  publish:
+    name: 打包并发布 AtomUpdate 到 nuget.org
+    needs: [updater, build-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/download-artifact@v4
+        with:
+          name: updater-win-x64
+          path: artifacts/updater/win-x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: updater-win-arm64
+          path: artifacts/updater/win-arm64
+      - uses: actions/download-artifact@v4
+        with:
+          name: updater-linux-x64
+          path: artifacts/updater/linux-x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: updater-linux-arm64
+          path: artifacts/updater/linux-arm64
+      - uses: actions/download-artifact@v4
+        with:
+          name: updater-osx-x64
+          path: artifacts/updater/osx-x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: updater-osx-arm64
+          path: artifacts/updater/osx-arm64
+
+      - name: 归一化更新器产物目录
+        run: |
+          cd artifacts/updater
+          for d in */; do
+            rid="${d%/}"
+            mkdir -p "../.staging/$rid"
+            find . -path "./$rid/*" -type f -exec mv {} "../.staging/$rid/" \;
+          done
+          cd .. && rm -rf updater && mv .staging updater
+          for rid in win-x64 win-arm64 linux-x64 linux-arm64 osx-x64 osx-arm64; do
+            mkdir -p "updater/$rid/native"
+            find "updater/$rid" -maxdepth 1 -type f -exec mv {} "updater/$rid/native/" \;
+          done
+          ls -R updater | head -40
+
+      - name: Pack（AtomUpdate + 依赖包 Core/Abstractions）
+        run: |
+          mkdir -p packages
+          for project in AtomUpdate.Core AtomUpdate.Abstractions AtomUpdate; do
+            dotnet pack "src/$project/$project.csproj" -c Release -o packages
+          done
+          ls -l packages
+
+      - name: 生成 Release 说明
+        run: |
+          {
+            echo "## AtomUpdate ${{ github.ref_name }}"
+            echo ""
+            prev="$(git tag --list 'v*' --sort=-v:refname | grep -v "^${GITHUB_REF_NAME}$" | head -1)"
+            if [ -n "$prev" ]; then
+              echo "### 变更（相比 $prev）"
+              git log --no-merges --pretty='- %s (%h)' "${prev}..${GITHUB_REF_NAME}"
+            else
+              echo "### 首个发布"
+              git log --no-merges -20 --pretty='- %s (%h)' "${GITHUB_REF_NAME}"
+            fi
+            echo ""
+            echo "### 包内容"
+            echo ""
+            echo "| 文件 | 大小 | SHA512 |"
+            echo "| --- | --- | --- |"
+            for f in packages/*.nupkg; do
+              echo "| $(basename "$f") | $(numfmt --to=iec $(stat -c%s "$f")) | $(sha512sum "$f" | cut -d' ' -f1) |"
+            done
+            echo ""
+            echo "安装：\`dotnet add package AtomUpdate --version ${GITHUB_REF_NAME#v}\`"
+            echo ""
+            echo "更新器为 6 RID Native AOT 内嵌（runtimes/{rid}/native），运行期无需外部下载。"
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: 推送到 nuget.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "::error::缺少仓库 Secret NUGET_API_KEY（Settings → Secrets and variables → Actions → Repository secrets，nuget.org 账户页生成 API Key，scope=Upload）"
+            exit 1
+          fi
+          for pkg in AtomUpdate.Core AtomUpdate.Abstractions AtomUpdate; do
+            f="$(ls packages/${pkg}.*.nupkg)"
+            echo ">> push $f"
+            dotnet nuget push "$f" \
+              --source https://api.nuget.org/v3/index.json \
+              --api-key "$NUGET_API_KEY" \
+              --skip-duplicate
+          done
+
+      - name: 等待 nuget.org 索引并校验可下载
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          url="https://api.nuget.org/v3-flatcontainer/atomupdate/$v/atomupdate.$v.nupkg"
+          for i in $(seq 1 30); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' "$url")"
+            if [ "$code" = "200" ]; then echo "已可下载: $url"; exit 0; fi
+            echo "尝试 $i/30: HTTP $code，60s 后重试"
+            sleep 60
+          done
+          echo "::error::nuget.org 上 30 分钟内未查到 AtomUpdate $v"
+          exit 1
+
+      - name: 创建 GitHub Release（附 nupkg）
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          files: packages/*.nupkg
+          make_new_body: false
+
+      - name: 追加发布记录 docs/RELEASES.md 并回提
+        run: |
+          mkdir -p docs
+          if [ ! -f docs/RELEASES.md ]; then
+            printf '# AtomUpdate 发布记录\n\n> 由 Publish NuGet 工作流在每次 tag 发布后自动追加，最新在上。\n' > docs/RELEASES.md
+          fi
+          entry="$(mktemp)"
+          {
+            printf '## %s — %s\n\n' "${GITHUB_REF_NAME}" "$(date -u +%Y-%m-%d)"
+            printf -- '- 提交: %s\n' "${GITHUB_SHA::7}"
+            printf -- '- 发布: [GitHub Release](https://github.com/%s/releases/tag/%s) · [nuget.org](https://www.nuget.org/packages/AtomUpdate/%s)\n' \
+              "${{ github.repository }}" "${GITHUB_REF_NAME}" "${GITHUB_REF_NAME#v}"
+            printf -- '- 包:\n'
+            for f in packages/*.nupkg; do
+              printf '  - `%s` (%s, sha512:%s)\n' "$(basename "$f")" \
+                "$(numfmt --to=iec $(stat -c%s "$f"))" "$(sha512sum "$f" | cut -c1-16)"
+            done
+            printf -- '- 更新器内嵌 RID: win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64\n\n'
+          } > "$entry"
+          # 新条目插在标题块之后、历史条目之前
+          head -3 docs/RELEASES.md > docs/RELEASES.md.new
+          printf '\n' >> docs/RELEASES.md.new
+          cat "$entry" >> docs/RELEASES.md.new
+          tail -n +4 docs/RELEASES.md >> docs/RELEASES.md.new
+          mv docs/RELEASES.md.new docs/RELEASES.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout main 2>/dev/null || git checkout -B main "origin/main"
+          git pull --ff-only origin main
+          git add docs/RELEASES.md
+          git diff --cached --quiet && { echo '无变化，跳过提交'; exit 0; }
+          git commit -m "发布记录: ${GITHUB_REF_NAME}"
+          git push origin main

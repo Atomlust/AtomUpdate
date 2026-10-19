@@ -1,0 +1,14 @@
+@page "/tenants"
+
+<PageTitle>租户管理 - AtomUpdate 管理后台</PageTitle>
+
+<PageContainer Title="租户管理" Description="仅平台管理员可见">
+@* AtomBlazor 的 Empty 无 EmptyIcon/EmptyTitle/EmptyDescription 子组件，
+   Icon 为 RenderFragment 参数（<Icon>…</Icon> 传入），Title/Description 为字符串参数。 *@
+<Empty Class="au-empty" Title="租户管理页未纳入 MVP"
+       Description="租户接口已就绪（/api/manage/tenants，仅平台管理员），当前请经接口维护。">
+    <Icon>
+        <LucideIcon Name="users" Class="au-empty-icon" />
+    </Icon>
+</Empty>
+</PageContainer>

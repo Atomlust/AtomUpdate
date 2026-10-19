@@ -1,0 +1,23 @@
+@page "/"
+
+<PageTitle>概览 - AtomUpdate 管理后台</PageTitle>
+
+<PageContainer Title="概览"
+               Description="实体总数与近 24 小时检查、命中率（统计概览已并入本页）">
+    <OverviewStats />
+
+    <Card Class="au-card">
+        <CardHeader>
+            <CardTitle>典型流程</CardTitle>
+        </CardHeader>
+        <CardContent>
+            <p>建项目 → 建应用 → 发布版本到通道（打包工具或 release 接口）→ 客户端检查更新 → 下载校验 → 安装。</p>
+            <p class="au-meta">
+                <a href="/projects">项目管理</a> ·
+                <a href="/apps">应用管理</a> ·
+                <a href="/releases">版本发布</a> ·
+                <a href="/audit">审计日志</a>
+            </p>
+        </CardContent>
+    </Card>
+</PageContainer>

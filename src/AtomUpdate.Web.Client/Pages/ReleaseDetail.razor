@@ -1,0 +1,152 @@
+@page "/releases/{ReleaseId:long}"
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>@(_release is { } title ? $"版本 {title.Version}" : "版本详情") - AtomUpdate 管理后台</PageTitle>
+
+<PageContainer Title="@(_release is { } head ? $"版本 {head.Version}" : "版本详情")"
+               Description="@(_release is { } d ? $"{PlatformText} · 包架构 {EnumLabels.Archs(d.Assets)} · {(d.BuildNumber is { } b ? $"构建 {b}" : "无构建号")}" : null)">
+    <Extra>
+        @if (_release is { } extra)
+        {
+            <div class="au-form-actions">
+                @if (extra.Status is ReleaseStatus.Draft or ReleaseStatus.Prerelease)
+                {
+                    <Button Variant="ButtonVariant.Default" OnClick="@(() => Navigation.NavigateTo(Scope!.PublishUrl(extra.Id)))">发布</Button>
+                    <Button Variant="ButtonVariant.Outline" OnClick="@(() => Navigation.NavigateTo(Scope!.EditUrl(extra.Id)))">编辑</Button>
+                }
+                @if (extra.Status == ReleaseStatus.Published)
+                {
+                    <Button Variant="ButtonVariant.Destructive" OnClick="@(() => Navigation.NavigateTo(Scope!.UnpublishUrl(extra.Id)))">撤回</Button>
+                }
+                <Button Variant="ButtonVariant.Outline" OnClick="@(() => Navigation.NavigateTo(Scope?.ListUrl ?? "/releases"))">返回列表</Button>
+            </div>
+        }
+    </Extra>
+
+    <ChildContent>
+        @if (_error is { } error)
+        {
+            <div class="au-state-block">
+                <span class="au-state-title">@error</span>
+                <Button Variant="ButtonVariant.Default" OnClick="@(() => Navigation.NavigateTo("/releases"))">返回版本列表</Button>
+            </div>
+        }
+        else if (_release is { } detail)
+        {
+            <ul class="au-detail-list">
+                <li><b>状态：</b>
+                    <Badge Variant="@EnumLabels.StatusVariant(detail.Status)">@detail.Status</Badge>
+                </li>
+                <li><b>版本号：</b>@detail.Version</li>
+                <li><b>构建号：</b>@(detail.BuildNumber?.ToString() ?? "-")</li>
+                <li><b>平台（来自应用）：</b>@PlatformText</li>
+                <li><b>包架构：</b>@EnumLabels.Archs(detail.Assets)</li>
+                <li><b>最低支持版本：</b>@(detail.MinSupportedVersion ?? "-")</li>
+                <li><b>强制更新：</b>@(detail.ForceUpdate ? "是" : "否")</li>
+                <li><b>创建时间：</b>@detail.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</li>
+                <li><b>发布时间：</b>@(detail.PublishedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")</li>
+                <li><b>通道：</b>
+                    @if (detail.Channels.Count == 0)
+                    {
+                        <span>未发布</span>
+                    }
+                    else
+                    {
+                        <div class="au-badges">
+                            @foreach (var channel in detail.Channels)
+                            {
+                                <Badge Variant="BadgeVariant.Outline">@($"{channel.Channel}（{channel.Status}）")</Badge>
+                            }
+                        </div>
+                    }
+                </li>
+            </ul>
+
+            <h4 class="au-stats-section-title">资产</h4>
+            <DataTable TData="ReleaseAssetDto" Data="detail.Assets" ShowToolbar="false" ShowPagination="false" InitialPageSize="200">
+                <Columns>
+                    <DataTableColumn TData="ReleaseAssetDto" TValue="AssetKind" Property="@(c => c.Kind)" Header="类型" />
+                    <DataTableColumn TData="ReleaseAssetDto" TValue="UpdateArch" Property="@(c => c.Arch)" Header="架构">
+                        <CellTemplate Context="row">
+                            <Badge Variant="BadgeVariant.Outline">@EnumLabels.Arch(row!.Arch)</Badge>
+                        </CellTemplate>
+                    </DataTableColumn>
+                    <DataTableColumn TData="ReleaseAssetDto" TValue="PackageType" Property="@(c => c.PackageType)" Header="包格式" />
+                    <DataTableColumn TData="ReleaseAssetDto" TValue="string" Property="@(c => c.FromVersion ?? string.Empty)" Header="增量起点" />
+                    <DataTableColumn TData="ReleaseAssetDto" TValue="string" Property="@(c => c.Url)" Header="地址" />
+                    <DataTableColumn TData="ReleaseAssetDto" TValue="string" Property="@(c => c.Size?.ToString() ?? string.Empty)" Header="大小" />
+                    <DataTableColumn TData="ReleaseAssetDto" TValue="string" Property="@(c => c.Sha256)" Header="SHA-256" />
+                </Columns>
+            </DataTable>
+
+            @if (detail.Notes is { } notes)
+            {
+                var sections = Sections(notes).Where(s => s.Items.Count > 0).ToList();
+                <h4 class="au-stats-section-title">更新日志</h4>
+                @if (sections.Count == 0)
+                {
+                    <pre class="au-pre">@(notes.RawMarkdown ?? "(空)")</pre>
+                }
+                @foreach (var (title, items) in sections)
+                {
+                    <div class="au-notes-section">
+                        <b>@title</b>
+                        <ul class="au-notes-list">
+                            @foreach (var item in items)
+                            {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            }
+        }
+    </ChildContent>
+</PageContainer>
+
+@code {
+    [Parameter]
+    public long ReleaseId { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "projectId")]
+    public long? QueryProjectId { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "appId")]
+    public long? QueryAppId { get; set; }
+
+    private ReleaseDto? _release;
+    private string? _error;
+    private UpdatePlatform? _platform;
+
+    private ReleaseScope? Scope => ReleaseScope.TryCreate(QueryProjectId, QueryAppId);
+
+    private string PlatformText => _platform is { } p ? EnumLabels.Platform(p) : "—";
+
+    private static IEnumerable<(string Title, IReadOnlyList<string> Items)> Sections(ReleaseNoteDto notes) =>
+        [("新增", notes.New), ("优化", notes.Improvements), ("修复", notes.Fixes), ("注意", notes.Notes)];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        if (Scope is not { } scope)
+        {
+            _error = "缺少 projectId / appId 参数，请从版本列表进入";
+            StateHasChanged();
+            return;
+        }
+
+        var (release, error) = await scope.FindAsync(Api, ReleaseId);
+        _release = release;
+        _error = error;
+        if (release is not null)
+        {
+            _platform = await scope.PlatformAsync(Api);
+        }
+        StateHasChanged();
+    }
+}

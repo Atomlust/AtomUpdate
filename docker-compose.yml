@@ -1,0 +1,86 @@
+# AtomUpdate 私有化部署（MVP，docs/09-部署手册）
+# 两种形态（docs/11）：
+#   默认（SQLite 轻量单容器，零必填配置）: docker compose up -d --build
+#     —— 首次访问 http://localhost:8081 进设置向导创建管理员；JWT 密钥自动生成并持久化到数据卷
+#   生产（PostgreSQL 双容器）: docker compose --profile postgres up -d --build web-pg
+#     —— 仍要求 JWT_SIGNING_KEY / BOOTSTRAP_PASSWORD 显式配置（多实例共享同一密钥）
+#   （两形态共用 8081 端口，切换前先 docker compose down）
+# 首次启动：web 自动执行 EF 迁移；管理员经设置向导或 Auth:Bootstrap 预配创建（用户表为空时幂等）
+# 限制：SQLite 形态单写者/单实例，见 docs/11 §3.5；多实例/高并发用 PostgreSQL 形态
+services:
+  web:
+    build:
+      context: .
+      dockerfile: src/AtomUpdate.Web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Database__Provider: sqlite
+      ConnectionStrings__Sqlite: Data Source=/data/atomupdate.db
+      Database__MigrateOnStartup: "true"
+      IdGen__GeneratorId: "1"
+      # 以下两项可选：JWT 密钥未配置时自动生成并持久化到 /data；管理员密码未配置时首次访问进设置向导
+      Auth__Jwt__SigningKey: ${JWT_SIGNING_KEY:-}
+      Auth__Bootstrap__Email: ${BOOTSTRAP_EMAIL:-admin@example.com}
+      Auth__Bootstrap__UserName: ${BOOTSTRAP_USERNAME:-admin}
+      Auth__Bootstrap__Password: ${BOOTSTRAP_PASSWORD:-}
+      Auth__Bootstrap__TenantSlug: ${BOOTSTRAP_TENANT:-default}
+      AdminApi__BaseUrl: http://localhost:8080/
+      Storage__Root: /data/uploads
+    volumes:
+      - sqlite-data:/data
+      - uploads:/data/uploads
+
+  # 生产形态：PostgreSQL + Web 双容器（--profile postgres 显式启用）
+  postgres:
+    profiles: ["postgres"]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: atomupdate
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d atomupdate"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    # 默认不暴露到宿主机；如需要从宿主机直连数据库，取消下行注释
+    # ports:
+    #   - "5432:5432"
+
+  web-pg:
+    profiles: ["postgres"]
+    build:
+      context: .
+      dockerfile: src/AtomUpdate.Web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Database__Provider: npgsql
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=atomupdate;Username=postgres;Password=postgres
+      Database__MigrateOnStartup: "true"
+      IdGen__GeneratorId: "1"
+      Auth__Jwt__SigningKey: ${JWT_SIGNING_KEY:?请在环境变量或 .env 中配置 JWT_SIGNING_KEY}
+      Auth__Bootstrap__Email: ${BOOTSTRAP_EMAIL:-admin@example.com}
+      Auth__Bootstrap__UserName: ${BOOTSTRAP_USERNAME:-admin}
+      Auth__Bootstrap__Password: ${BOOTSTRAP_PASSWORD:?请在环境变量或 .env 中配置 BOOTSTRAP_PASSWORD}
+      Auth__Bootstrap__TenantSlug: ${BOOTSTRAP_TENANT:-default}
+      AdminApi__BaseUrl: http://localhost:8080/
+      Storage__Root: /data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - uploads:/data/uploads
+
+volumes:
+  pgdata:
+  uploads:
+  sqlite-data:

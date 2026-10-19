@@ -1,0 +1,65 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- 服务端（Api / Web / Web.Client / Validation） -->
+    <PackageVersion Include="FluentValidation" Version="12.2.0" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.2.0" />
+    <PackageVersion Include="NuGet.Versioning" Version="7.9.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="11.0.0-rtm.26480.113" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="11.0.0-rtm.26480.113" />
+    <!-- Api 数据层（EF Core 11 + Npgsql；IdGen 主键：库无 EF/JSON 集成，自实现薄封装）
+         EF 全家桶暂锁 11.0.0-rc.1.26425.128：Npgsql.EntityFrameworkCore.PostgreSQL
+         11.0.0-rc.1.1 对 EF Core/Relational 是精确版本依赖 [11.0.0-rc.1.26425.128]，
+         钉同一构建号时依赖精确满足、无 NU1608。
+         未选 rtm.26480.113 的原因：rtm 线 EF.Design 的 Roslyn 5.9 / MSBuild 18.9
+         是新稳定线依赖，会引入 Microsoft.NET.StringTools 等包，与 nuget.config 的
+         sourceMapping（Microsoft.* → dotnet11 源）冲突导致 Docker 冷还原 NU1101；
+         且 EF 分包（Abstractions/Analyzers/Sqlite.Core）无 rc.2.26504 构建，升线必然
+         跨构建混合。待 Npgsql 发布匹配新版后随 Provider 一并升级。 -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="11.0.0-rc.1.1" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="IdGen" Version="3.0.7" />
+    <!-- 客户端 SDK -->
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="11.0.0-rtm.26480.113" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="11.0.0-rtm.26480.113" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0-rtm.26480.113" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="11.0.0-rtm.26480.113" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="11.0.0-rtm.26480.113" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="11.0.0-rtm.26480.113" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="11.0.0-rtm.26480.113" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="11.0.0-rtm.26480.113" />
+    <!-- Blazor -->
+    <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="11.0.0-rtm.26480.113" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="11.0.0-rtm.26480.113" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="11.0.0-rtm.26480.113" />
+    <!-- Web 管理后台 UI：AtomBlazor（NuGet 正式包，net11.0-only，替代原 NeoUI.Blazor）。
+         主包传递引入 AtomBlazor.Primitives / AtomBlazor.Icons.Lucide（版本随主包联动）
+         与 Markdig / HtmlSanitizer / Ical.Net / TailwindMerge.NET，消费侧只装主包。
+         库源码在 D:/Source/AtomBlazorUI（本地目录、非 git 仓库），发布线 nuget.org
+         （nuget.config 的 * 兜底模式已覆盖，无需额外源映射）。
+         曾用本地源码 ProjectReference，因库重构改名（包 ID AtomBlazor、命名空间
+         根 AtomBlazor）且发布线已稳定，改回 NuGet 消费；WASM full 裁剪下重依赖
+         会被裁掉，见 Web.Client csproj 注释与 TrimRoots.xml。 -->
+    <PackageVersion Include="AtomBlazor" Version="0.3.0" />
+    <!-- Packager（Avalonia） -->
+    <PackageVersion Include="Avalonia" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Desktop" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+    <PackageVersion Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3" />
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <!-- Packager.Core（打包/上传） -->
+    <!-- 测试 -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
+    <PackageVersion Include="coverlet.collector" Version="10.1.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="11.0.0-rtm.26480.113" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.16.0" />
+  </ItemGroup>
+</Project>

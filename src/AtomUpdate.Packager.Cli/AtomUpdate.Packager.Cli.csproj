@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <!-- dotnet tool 分发（docs/05 §16）：CI 主路径走 CLI，GUI 仅交互场景 -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>atomupdate-packager</ToolCommandName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AtomUpdate.Packager.Core\AtomUpdate.Packager.Core.csproj" />
+  </ItemGroup>
+
+</Project>

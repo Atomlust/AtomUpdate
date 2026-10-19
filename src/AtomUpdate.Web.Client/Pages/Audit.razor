@@ -1,0 +1,83 @@
+@page "/audit"
+@inject ApiClient Api
+@inject ToastService Toast
+
+<PageTitle>审计日志 - AtomUpdate 管理后台</PageTitle>
+
+<PageContainer Title="审计日志" Description="管理侧写操作留痕，按时间倒序分页">
+    <div class="au-toolbar">
+            <span class="au-meta">共 @_total 条 · 第 @_page / @LastPage 页</span>
+        </div>
+
+        <DataTable TData="AuditLogDto" Data="_items" ShowToolbar="false" ShowPagination="false" InitialPageSize="200" IsLoading="_loading">
+            <Columns>
+                <DataTableColumn TData="AuditLogDto" TValue="DateTimeOffset" Property="@(c => c.CreatedAt)" Header="时间">
+                    <CellTemplate Context="row">
+                        @row!.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")
+                    </CellTemplate>
+                </DataTableColumn>
+                <DataTableColumn TData="AuditLogDto" TValue="string" Property="@(c => c.ActorName ?? c.Actor ?? string.Empty)" Header="操作人" />
+                <DataTableColumn TData="AuditLogDto" TValue="string" Property="@(c => c.Action)" Header="动作" />
+                <DataTableColumn TData="AuditLogDto" TValue="string" Property="@(c => c.EntityType)" Header="对象类型" />
+                <DataTableColumn TData="AuditLogDto" TValue="string" Property="@(c => c.EntityId)" Header="对象 ID" />
+                <DataTableColumn TData="AuditLogDto" TValue="string" Property="@(c => c.Details ?? string.Empty)" Header="详情" />
+            </Columns>
+        </DataTable>
+
+        <div class="au-toolbar au-pager">
+            <span class="au-spacer"></span>
+            <div class="au-btn-row">
+                <Button Disabled="_page <= 1 || _loading" OnClick="x => GoAsync(_page - 1)">上一页</Button>
+                <span class="au-meta">第 @_page 页 / 共 @LastPage 页（@_total 条）</span>
+                <Button Disabled="_page >= LastPage || _loading" OnClick="x => GoAsync(_page + 1)">下一页</Button>
+            </div>
+        </div>
+</PageContainer>
+
+@code {
+    private const int PageSize = 20;
+
+    private List<AuditLogDto> _items = [];
+    private bool _loading;
+    private int _page = 1;
+    private int _total;
+
+    private int LastPage => Math.Max(1, (int)Math.Ceiling(_total / (double)PageSize));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadAsync(1);
+    }
+
+    private Task GoAsync(int page) => LoadAsync(page);
+
+    private async Task LoadAsync(int page)
+    {
+        _loading = true;
+        try
+        {
+            var result = await Api.GetAsync<PagedResult<AuditLogDto>>(
+                $"{ApiRoutes.ManagePrefix}/audit-logs?page={page}&pageSize={PageSize}");
+            if (result.IsSuccess && result.Data is not null)
+            {
+                _items = result.Data.Items.ToList();
+                _total = result.Data.Total;
+                _page = page;
+            }
+            else
+            {
+                Toast.Error(result.ErrorMessage ?? "加载审计日志失败", "加载失败");
+            }
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+}

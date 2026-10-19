@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-test:
+    name: 构建与测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore tools
+        run: dotnet tool restore
+      - name: Restore
+        run: dotnet restore AtomUpdate.slnx
+      - name: Build
+        run: dotnet build AtomUpdate.slnx -c Release --no-restore
+      - name: Test
+        run: dotnet test AtomUpdate.slnx -c Release --no-build
+
+  publish-updater:
+    name: 发布更新器 (${{ matrix.rid }})
+    needs: build-test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            os: windows-latest
+          - rid: win-arm64
+            os: windows-latest
+          - rid: linux-x64
+            os: ubuntu-latest
+          - rid: linux-arm64
+            os: ubuntu-latest
+          - rid: osx-x64
+            os: macos-latest
+          - rid: osx-arm64
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Publish
+        run: dotnet publish src/AtomUpdate.Updater/AtomUpdate.Updater.csproj -c Release -r ${{ matrix.rid }} -p:PublishAot=true -o artifacts/updater/${{ matrix.rid }}/native
+      - uses: actions/upload-artifact@v4
+        with:
+          name: updater-${{ matrix.rid }}
+          path: artifacts/updater/${{ matrix.rid }}/
+
+  pack-packages:
+    name: 打包 NuGet（内嵌更新器）
+    needs: publish-updater
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/updater
+      - name: 归一化更新器产物目录
+        run: |
+          cd artifacts/updater
+          for artifact in updater-*; do
+            mv "$artifact" "${artifact#updater-}"
+          done
+          ls -R . | head -40
+      - name: Pack AtomUpdate.Core / Abstractions / AtomUpdate / Packager.Cli(tool)
+        run: |
+          for project in AtomUpdate.Core AtomUpdate.Abstractions AtomUpdate AtomUpdate.Packager.Cli; do
+            dotnet pack src/$project/$project.csproj -c Release -o artifacts/packages
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts/packages/
+
+  docker-build:
+    name: 构建 Web Docker 镜像（冒烟，不推送）
+    needs: build-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build image
+        run: docker build -f src/AtomUpdate.Web/Dockerfile -t atomupdate-web:ci .

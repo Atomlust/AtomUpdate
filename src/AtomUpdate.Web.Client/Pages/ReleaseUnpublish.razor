@@ -1,0 +1,121 @@
+@page "/releases/{ReleaseId:long}/unpublish"
+@inject ApiClient Api
+@inject ToastService Toast
+@inject NavigationManager Navigation
+
+<PageTitle>撤回版本 - AtomUpdate 管理后台</PageTitle>
+
+<PageContainer Title="@($"撤回 {(_release?.Version ?? ReleaseId.ToString())}")"
+               Description="撤回该版本在所有通道上的发布">
+    <Extra>
+        <div class="au-form-actions">
+            <Button Variant="ButtonVariant.Destructive" Disabled="_saving || _release is null" OnClick="SaveAsync">@(_saving ? "撤回中…" : "确认撤回")</Button>
+            <Button Variant="ButtonVariant.Outline" OnClick="Cancel">取消</Button>
+        </div>
+    </Extra>
+
+    <ChildContent>
+        @if (_error is { } error)
+        {
+            <div class="au-state-block">
+                <span class="au-state-title">@error</span>
+                <Button Variant="ButtonVariant.Default" OnClick="@(() => Navigation.NavigateTo("/releases"))">返回版本列表</Button>
+            </div>
+        }
+        else if (_release is { } release)
+        {
+            <ul class="au-detail-list">
+                <li><b>版本号：</b>@release.Version</li>
+                <li><b>平台（来自应用）：</b>@PlatformText</li>
+                <li><b>包架构：</b>@EnumLabels.Archs(release.Assets)</li>
+                <li><b>状态：</b>@release.Status</li>
+                <li><b>已发布通道：</b>@(release.Channels.Count == 0 ? "无" : string.Join("、", release.Channels.Select(c => $"{c.Channel}（{c.Status}）")))</li>
+            </ul>
+
+            <Separator />
+
+            <p class="au-state-desc">撤回后该版本在所有通道下线；同版本号禁止重新发布（Q11），需以新构建号重发。确认撤回？</p>
+        }
+    </ChildContent>
+</PageContainer>
+
+@code {
+    [Parameter]
+    public long ReleaseId { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "projectId")]
+    public long? QueryProjectId { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "appId")]
+    public long? QueryAppId { get; set; }
+
+    private ReleaseDto? _release;
+    private string? _error;
+    private bool _saving;
+    private UpdatePlatform? _platform;
+
+    private ReleaseScope? Scope => ReleaseScope.TryCreate(QueryProjectId, QueryAppId);
+
+    private string PlatformText => _platform is { } p ? EnumLabels.Platform(p) : "—";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        if (Scope is not { } scope)
+        {
+            _error = "缺少 projectId / appId 参数，请从版本列表进入";
+            StateHasChanged();
+            return;
+        }
+
+        var (release, error) = await scope.FindAsync(Api, ReleaseId);
+        var message = error;
+        if (release is not null && release.Status != ReleaseStatus.Published)
+        {
+            message = $"版本 {release.Version} 当前为 {release.Status}，没有可撤回的发布";
+            release = null;
+        }
+
+        _release = release;
+        _error = message;
+        if (release is not null)
+        {
+            _platform = await scope.PlatformAsync(Api);
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (Scope is not { } scope || _release is null)
+        {
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var result = await Api.SendAsync<ReleaseDto>(HttpMethod.Post, scope.ApiUrl(ReleaseId, "/unpublish"));
+            if (!result.IsSuccess)
+            {
+                Toast.Error(result.ErrorMessage ?? "撤回失败", "撤回失败");
+                return;
+            }
+
+            Toast.Success($"已撤回 {_release.Version}");
+            Navigation.NavigateTo(scope.DetailUrl(ReleaseId));
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel() =>
+        Navigation.NavigateTo(Scope?.DetailUrl(ReleaseId) ?? "/releases");
+}

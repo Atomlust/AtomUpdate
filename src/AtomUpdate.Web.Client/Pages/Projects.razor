@@ -1,0 +1,291 @@
+@page "/projects"
+@inject ApiClient Api
+@inject ToastService Toast
+
+<PageTitle>项目 - AtomUpdate 管理后台</PageTitle>
+
+<PageContainer Title="项目" Description="项目承载客户端使用的 ProjectKey，应用挂在项目下">
+    <Extra>
+        <Button Variant="ButtonVariant.Default" OnClick="OpenCreate">新建项目</Button>
+    </Extra>
+
+    <ChildContent>
+        <div class="au-toolbar">
+            <span class="au-meta">共 @_total 条 · 第 @_page / @LastPage 页</span>
+        </div>
+
+        <DataTable TData="ProjectDto" Data="_items" ShowToolbar="false" ShowPagination="false" InitialPageSize="200" IsLoading="_loading">
+                <Columns>
+                    <DataTableColumn TData="ProjectDto" TValue="string" Property="@(c => c.Key)" Header="Key" />
+                    <DataTableColumn TData="ProjectDto" TValue="string" Property="@(c => c.Name)" Header="名称" />
+                    @* DataTableColumn 的 TValue 受 notnull 约束，Property 返回 null 会在渲染时抛
+                       “Column 'x' returned null for a non-nullable type.”并终止电路，故可空字段在此收敛为空串。 *@
+                    <DataTableColumn TData="ProjectDto" TValue="string" Property="@(c => c.Description ?? string.Empty)" Header="描述" />
+                    <DataTableColumn TData="ProjectDto" TValue="EntityStatus" Property="@(c => c.Status)" Header="状态">
+                        <CellTemplate Context="row">
+                            <Badge Variant="@(row!.Status == EntityStatus.Active ? BadgeVariant.SoftSuccess : BadgeVariant.SoftDestructive)">@row.Status</Badge>
+                        </CellTemplate>
+                    </DataTableColumn>
+                    <DataTableColumn TData="ProjectDto" TValue="DateTimeOffset" Property="@(c => c.CreatedAt)" Header="创建时间">
+                        <CellTemplate Context="row">@row!.CreatedAt.ToString("yyyy-MM-dd HH:mm")</CellTemplate>
+                    </DataTableColumn>
+                    <DataTableColumn TData="ProjectDto" TValue="string" Property="@(c => c.Name)" Header="操作">
+                        <CellTemplate Context="row">
+                            <div class="au-row-actions">
+                                <Button Variant="ButtonVariant.Link" OnClick="x => OpenEditAsync(row!)">编辑</Button>
+                                <Button Variant="ButtonVariant.Link" Class="au-link-danger" OnClick="x => AskDelete(row!)">删除</Button>
+                            </div>
+                        </CellTemplate>
+                    </DataTableColumn>
+                </Columns>
+        </DataTable>
+
+        <div class="au-toolbar au-pager">
+            <span class="au-spacer"></span>
+            <div class="au-btn-row">
+                <Button Disabled="_page <= 1 || _loading" OnClick="x => GoAsync(_page - 1)">上一页</Button>
+                <span class="au-meta">第 @_page 页 / 共 @LastPage 页（@_total 条）</span>
+                <Button Disabled="_page >= LastPage || _loading" OnClick="x => GoAsync(_page + 1)">下一页</Button>
+            </div>
+        </div>
+
+        <Dialog @bind-Open="_deleteDialogOpen">
+            <DialogContent Class="au-dialog">
+                <DialogHeader>
+                    <DialogTitle>确认删除</DialogTitle>
+                </DialogHeader>
+                <p class="au-state-desc">确定要删除项目「@(_deleting?.Name)」吗？项目下不能有应用；项目的 API Key 将一并删除，此操作不可恢复。</p>
+                <DialogFooter>
+                    <DialogClose AsChild>
+                        <Button Variant="ButtonVariant.Outline">取消</Button>
+                    </DialogClose>
+                    <Button Variant="ButtonVariant.Destructive" OnClick="DeleteAsync" Disabled="_deleting is null || _saving">
+                        @(_saving ? "删除中…" : "确认删除")
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    </ChildContent>
+</PageContainer>
+
+<Dialog @bind-Open="_dialogOpen">
+    <DialogContent Class="au-dialog">
+        <DialogHeader>
+            <DialogTitle>@(_editing is null ? "新建项目" : "编辑项目")</DialogTitle>
+        </DialogHeader>
+        <EditForm Model="_form" OnSubmit="SubmitAsync">
+            <Field>
+                <FieldLabel For="project-key">Key（小写字母/数字/连字符）</FieldLabel>
+                <FieldContent>
+                    <Input Id="project-key"
+                           Type="InputType.Text"
+                           @bind-Value="_form.Key"
+                           Placeholder="my-project"
+                           Disabled="_editing is not null" />
+                </FieldContent>
+            </Field>
+            <Field>
+                <FieldLabel For="project-name">名称</FieldLabel>
+                <FieldContent>
+                    <Input Id="project-name" Type="InputType.Text" @bind-Value="_form.Name" />
+                </FieldContent>
+            </Field>
+            <Field>
+                <FieldLabel For="project-desc">描述</FieldLabel>
+                <FieldContent>
+                    <Textarea Id="project-desc" @bind-Value="_form.Description" Rows="3" />
+                </FieldContent>
+            </Field>
+            @if (_editing is not null)
+            {
+                <Field>
+                    <FieldLabel For="project-status">状态</FieldLabel>
+                    <FieldContent>
+                        <Select @bind-Value="_form.Status" TValue="EntityStatus">
+                            <SelectTrigger>
+                                <SelectValue TValue="EntityStatus" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem Value="@EntityStatus.Active" Text="启用" TValue="EntityStatus">启用</SelectItem>
+                                <SelectItem Value="@EntityStatus.Disabled" Text="停用" TValue="EntityStatus">停用</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </FieldContent>
+                </Field>
+            }
+        </EditForm>
+        <DialogFooter>
+            <DialogClose AsChild>
+                <Button Variant="ButtonVariant.Outline">取消</Button>
+            </DialogClose>
+            <Button Variant="ButtonVariant.Default" OnClick="SaveAsync" Disabled="_saving">
+                @(_saving ? "保存中…" : "保存")
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
+
+@code {
+    private const int PageSize = 20;
+
+    private List<ProjectDto> _items = [];
+    private bool _loading;
+    private int _page = 1;
+    private int _total;
+    private bool _dialogOpen;
+    private bool _deleteDialogOpen;
+    private bool _saving;
+    private ProjectDto? _editing;
+    private ProjectDto? _deleting;
+    private ProjectForm _form = new();
+
+    private int LastPage => Math.Max(1, (int)Math.Ceiling(_total / (double)PageSize));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadAsync(1);
+    }
+
+    private Task GoAsync(int page) => LoadAsync(page);
+
+    private async Task LoadAsync(int page)
+    {
+        _loading = true;
+        try
+        {
+            var result = await Api.GetAsync<PagedResult<ProjectDto>>(
+                $"{ApiRoutes.ManagePrefix}/projects?page={page}&pageSize={PageSize}");
+            if (result.IsSuccess && result.Data is not null)
+            {
+                _items = result.Data.Items.ToList();
+                _total = result.Data.Total;
+                _page = page;
+            }
+            else
+            {
+                Toast.Error(result.ErrorMessage ?? "加载项目失败", "加载失败");
+            }
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OpenCreate()
+    {
+        _editing = null;
+        _form = new ProjectForm { Status = EntityStatus.Active };
+        _dialogOpen = true;
+    }
+
+    private void OpenEditAsync(ProjectDto project)
+    {
+        _editing = project;
+        _form = new ProjectForm
+        {
+            Key = project.Key,
+            Name = project.Name,
+            Description = project.Description,
+            Status = project.Status
+        };
+        _dialogOpen = true;
+    }
+
+    private async Task SubmitAsync(EditContext context)
+    {
+        await SaveAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            ApiResult<ProjectDto> result;
+            if (_editing is null)
+            {
+                result = await Api.SendAsync<ProjectDto>(HttpMethod.Post, $"{ApiRoutes.ManagePrefix}/projects",
+                    new ProjectCreateRequest { Key = _form.Key, Name = _form.Name, Description = _form.Description });
+            }
+            else
+            {
+                result = await Api.SendAsync<ProjectDto>(HttpMethod.Patch, $"{ApiRoutes.ManagePrefix}/projects/{_editing.Id}",
+                    new ProjectUpdateRequest { Name = _form.Name, Description = _form.Description, Status = _form.Status });
+            }
+
+            if (!result.IsSuccess)
+            {
+                await HandleErrorAsync(result.ErrorMessage);
+                return;
+            }
+
+            _dialogOpen = false;
+            Toast.Success("已保存");
+            await LoadAsync(_page);
+        }
+        finally
+        {
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleErrorAsync(string? message)
+    {
+        if (message is not null)
+        {
+            Toast.Error(message, "操作失败");
+        }
+    }
+
+    private void AskDelete(ProjectDto project)
+    {
+        _deleting = project;
+        _deleteDialogOpen = true;
+    }
+
+    /// <summary>受限删除：后端仅允许删除无应用的项目（409 提示先删应用），并级联清理 API Key。</summary>
+    private async Task DeleteAsync()
+    {
+        if (_deleting is null)
+        {
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var result = await Api.SendAsync<object>(HttpMethod.Delete, $"{ApiRoutes.ManagePrefix}/projects/{_deleting.Id}");
+            _deleteDialogOpen = false;
+            if (result.IsSuccess)
+            {
+                Toast.Success("已删除");
+                await LoadAsync(_page);
+            }
+            else
+            {
+                Toast.Error(result.ErrorMessage ?? "删除项目失败", "删除失败");
+            }
+        }
+        finally
+        {
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private sealed class ProjectForm
+    {
+        public string Key { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public EntityStatus Status { get; set; } = EntityStatus.Active;
+    }
+}

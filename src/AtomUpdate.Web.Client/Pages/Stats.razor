@@ -1,0 +1,233 @@
+@page "/stats"
+@inject ApiClient Api
+@inject ToastService Toast
+
+<PageTitle>统计 - AtomUpdate 管理后台</PageTitle>
+
+<PageContainer Title="统计" Description="安装、下载与检查缓存指标；可选按应用过滤">
+    <ChildContent>
+        <div class="au-query">
+            <div class="au-field">
+                <span class="au-field-label">应用</span>
+                <Select TValue="long?" Value="_appId" ValueChanged="OnAppChangedAsync">
+                    <SelectTrigger>
+                        <SelectValue Placeholder="全部应用" TValue="long?" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        @foreach (var app in _apps)
+                        {
+                            <SelectItem Value="@((long?)app.Id)" Text="@($"{app.Name}（{app.AppId}）")" TValue="long?">
+                                @($"{app.Name}（{app.AppId}）")
+                            </SelectItem>
+                        }
+                    </SelectContent>
+                </Select>
+            </div>
+            <div class="au-field au-field-actions">
+                <Button Variant="ButtonVariant.Outline" OnClick="ReloadAsync">刷新</Button>
+            </div>
+        </div>
+
+        @if (_installSummary is { } inst)
+        {
+            <div class="au-stats-grid">
+                <div class="au-stat"><div class="au-stat-title">安装实例总数</div><div class="au-stat-value">@inst.Total</div></div>
+                <div class="au-stat"><div class="au-stat-title">机器指纹去重</div><div class="au-stat-value">@inst.DistinctFingerprints</div></div>
+                <div class="au-stat"><div class="au-stat-title">未上报指纹</div><div class="au-stat-value">@inst.WithoutFingerprint</div></div>
+                <div class="au-stat"><div class="au-stat-title">活跃（24h）</div><div class="au-stat-value">@inst.Active24h</div></div>
+                <div class="au-stat"><div class="au-stat-title">活跃（7d）</div><div class="au-stat-value">@inst.Active7d</div></div>
+            </div>
+        }
+
+        @if (_downloadSummary is { } dl)
+        {
+            <div class="au-stats-grid">
+                <div class="au-stat"><div class="au-stat-title">下载（24h）</div><div class="au-stat-value">@dl.Downloads24h</div></div>
+                <div class="au-stat"><div class="au-stat-title">下载（7d）</div><div class="au-stat-value">@dl.Downloads7d</div></div>
+                <div class="au-stat"><div class="au-stat-title">下载成功率（7d）</div><div class="au-stat-value">@(dl.SuccessRate7d.ToString("P1"))</div></div>
+                <div class="au-stat"><div class="au-stat-title">下载字节（7d）</div><div class="au-stat-value">@FormatBytes(dl.Bytes7d)</div></div>
+                <div class="au-stat"><div class="au-stat-title">平均时长（7d）</div><div class="au-stat-value">@(dl.AvgDurationMs7d.ToString("F0")) ms</div></div>
+                <div class="au-stat"><div class="au-stat-title">增量包占比（7d）</div><div class="au-stat-value">@(dl.DeltaShare7d.ToString("P1"))</div></div>
+            </div>
+        }
+
+        @if (_checkSummary is { } ck)
+        {
+            <div class="au-stats-grid">
+                <div class="au-stat"><div class="au-stat-title">检查（24h）</div><div class="au-stat-value">@ck.Checks24h</div></div>
+                <div class="au-stat"><div class="au-stat-title">检查（7d）</div><div class="au-stat-value">@ck.Checks7d</div></div>
+                <div class="au-stat"><div class="au-stat-title">ETag 命中率（7d）</div><div class="au-stat-value">@(ck.ETagHitRate7d.ToString("P1"))</div></div>
+                <div class="au-stat"><div class="au-stat-title">策略未变率（7d）</div><div class="au-stat-value">@(ck.PolicyUnchangedRate7d.ToString("P1"))</div></div>
+            </div>
+        }
+
+        @if (_installSummary is { ByVersion.Count: > 0 } ver)
+        {
+            <div class="au-stats-section">
+                <h4 class="au-stats-section-title">版本分布（按最近运行版本，Top10）</h4>
+                <DataTable TData="VersionCountDto" Data="ver.ByVersion" ShowToolbar="false" ShowPagination="false" InitialPageSize="10">
+                    <Columns>
+                        <DataTableColumn TData="VersionCountDto" TValue="string" Property="@(c => c.Version)" Header="版本" />
+                        <DataTableColumn TData="VersionCountDto" TValue="int" Property="@(c => c.Count)" Header="实例数" />
+                    </Columns>
+                </DataTable>
+            </div>
+        }
+
+        @if (_installSummary is { ByChannel.Count: > 0 } cha)
+        {
+            <div class="au-stats-section">
+                <h4 class="au-stats-section-title">通道分布</h4>
+                <DataTable TData="ChannelCountDto" Data="cha.ByChannel" ShowToolbar="false" ShowPagination="false" InitialPageSize="10">
+                    <Columns>
+                        <DataTableColumn TData="ChannelCountDto" TValue="UpdateChannel" Property="@(c => c.Channel)" Header="通道">
+                            <CellTemplate Context="row">
+                                @row!.Channel.ToString().ToLowerInvariant()
+                            </CellTemplate>
+                        </DataTableColumn>
+                        <DataTableColumn TData="ChannelCountDto" TValue="int" Property="@(c => c.Count)" Header="实例数" />
+                    </Columns>
+                </DataTable>
+            </div>
+        }
+
+        <div class="au-stats-section">
+            <h4 class="au-stats-section-title">安装实例</h4>
+                <DataTable TData="InstallationDto" Data="_installations" ShowToolbar="false" ShowPagination="false" InitialPageSize="200" IsLoading="_loadingList">
+                    <Columns>
+                        <DataTableColumn TData="InstallationDto" TValue="string" Property="@(c => c.InstallationId)" Header="安装 ID" />
+                        <DataTableColumn TData="InstallationDto" TValue="string" Property="@(c => c.MachineFingerprintHash ?? string.Empty)" Header="机器指纹">
+                            <CellTemplate Context="row">
+                                @{
+                                    var fp = row!.MachineFingerprintHash;
+                                }
+                                @(fp is { Length: > 12 } ? fp[..12] + "…" : fp ?? "—")
+                            </CellTemplate>
+                        </DataTableColumn>
+                        <DataTableColumn TData="InstallationDto" TValue="string" Property="@(c => c.Channel == null ? string.Empty : c.Channel.Value.ToString().ToLowerInvariant())" Header="通道">
+                            <CellTemplate Context="row">
+                                @(row!.Channel?.ToString().ToLowerInvariant() ?? "—")
+                            </CellTemplate>
+                        </DataTableColumn>
+                        <DataTableColumn TData="InstallationDto" TValue="string" Property="@(c => c.LastVersion ?? string.Empty)" Header="最近版本">
+                            <CellTemplate Context="row">
+                                @(row!.LastVersion ?? "—")
+                            </CellTemplate>
+                        </DataTableColumn>
+                        <DataTableColumn TData="InstallationDto" TValue="DateTimeOffset" Property="@(c => c.FirstSeenAt)" Header="首次活跃">
+                            <CellTemplate Context="row">
+                                @row!.FirstSeenAt.ToString("yyyy-MM-dd HH:mm:ss")
+                            </CellTemplate>
+                        </DataTableColumn>
+                        <DataTableColumn TData="InstallationDto" TValue="DateTimeOffset" Property="@(c => c.LastSeenAt)" Header="最近活跃">
+                            <CellTemplate Context="row">
+                                @row!.LastSeenAt.ToString("yyyy-MM-dd HH:mm:ss")
+                            </CellTemplate>
+                        </DataTableColumn>
+                    </Columns>
+                </DataTable>
+
+                <div class="au-toolbar au-pager">
+                    <span class="au-spacer"></span>
+                    <div class="au-btn-row">
+                        <Button Disabled="_page <= 1 || _loadingList" OnClick="x => LoadInstallationsAsync(_page - 1)">上一页</Button>
+                        <span class="au-meta">第 @_page 页 / 共 @LastPage 页（@_total 条）</span>
+                        <Button Disabled="_page >= LastPage || _loadingList" OnClick="x => LoadInstallationsAsync(_page + 1)">下一页</Button>
+                    </div>
+            </div>
+        </div>
+    </ChildContent>
+</PageContainer>
+
+@code {
+    private const int PageSize = 20;
+
+    private List<AppDto> _apps = [];
+    private long? _appId;
+
+    private InstallationSummaryDto? _installSummary;
+    private DownloadSummaryDto? _downloadSummary;
+    private CheckSummaryDto? _checkSummary;
+
+    private List<InstallationDto> _installations = [];
+    private bool _loadingList;
+    private int _page = 1;
+    private int _total;
+
+    private int LastPage => Math.Max(1, (int)Math.Ceiling(_total / (double)PageSize));
+
+    private string AppFilter => _appId is { } id ? $"?appId={id}" : string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        var appsResult = await Api.GetAsync<PagedResult<AppDto>>($"{ApiRoutes.ManagePrefix}/apps");
+        if (appsResult.IsSuccess && appsResult.Data is not null)
+        {
+            _apps = appsResult.Data.Items.ToList();
+        }
+
+        await ReloadAsync();
+    }
+
+    private Task OnAppChangedAsync(long? appId)
+    {
+        _appId = appId;
+        return ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        var summary = await Api.GetAsync<InstallationSummaryDto>($"{ApiRoutes.ManagePrefix}/stats/installations/summary{AppFilter}");
+        if (summary.IsSuccess) { _installSummary = summary.Data; }
+        else { Toast.Error(summary.ErrorMessage ?? "加载安装汇总失败", "加载失败"); }
+
+        var downloads = await Api.GetAsync<DownloadSummaryDto>($"{ApiRoutes.ManagePrefix}/stats/downloads/summary{AppFilter}");
+        if (downloads.IsSuccess) { _downloadSummary = downloads.Data; }
+        else { Toast.Error(downloads.ErrorMessage ?? "加载下载汇总失败", "加载失败"); }
+
+        var checks = await Api.GetAsync<CheckSummaryDto>($"{ApiRoutes.ManagePrefix}/stats/checks/summary{AppFilter}");
+        if (checks.IsSuccess) { _checkSummary = checks.Data; }
+        else { Toast.Error(checks.ErrorMessage ?? "加载检查汇总失败", "加载失败"); }
+
+        await LoadInstallationsAsync(1);
+    }
+
+    private async Task LoadInstallationsAsync(int page)
+    {
+        _loadingList = true;
+        try
+        {
+            var separator = _appId is null ? "?" : "&";
+            var result = await Api.GetAsync<PagedResult<InstallationDto>>(
+                $"{ApiRoutes.ManagePrefix}/stats/installations{AppFilter}{separator}page={page}&pageSize={PageSize}");
+            if (result.IsSuccess && result.Data is not null)
+            {
+                _installations = result.Data.Items.ToList();
+                _total = result.Data.Total;
+                _page = page;
+            }
+            else
+            {
+                Toast.Error(result.ErrorMessage ?? "加载安装实例失败", "加载失败");
+            }
+        }
+        finally
+        {
+            _loadingList = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string FormatBytes(long bytes) => bytes switch
+    {
+        >= 1L << 30 => $"{bytes / (double)(1L << 30):F2} GB",
+        >= 1L << 20 => $"{bytes / (double)(1L << 20):F2} MB",
+        >= 1L << 10 => $"{bytes / (double)(1L << 10):F2} KB",
+        _ => $"{bytes} B"
+    };
+}

@@ -1,0 +1,62 @@
+@inject ApiClient Api
+@inject ToastService Toast
+
+@* 关键指标：数字卡片行（每格一张细线白卡，标题在上、数值在下），直接落在内容区。 *@
+@if (_loading)
+{
+    <div class="au-loading"><Spinner Size="SpinnerSize.Default" /></div>
+}
+else if (_overview is { } o)
+{
+    <div class="au-stats-grid">
+        <div class="au-stat"><div class="au-stat-title">项目</div><div class="au-stat-value">@o.Projects</div></div>
+        <div class="au-stat"><div class="au-stat-title">应用</div><div class="au-stat-value">@o.Apps</div></div>
+        <div class="au-stat"><div class="au-stat-title">已发布版本</div><div class="au-stat-value">@o.PublishedReleases</div></div>
+        <div class="au-stat"><div class="au-stat-title">检查次数（24h）</div><div class="au-stat-value">@o.Checks24h</div></div>
+        <div class="au-stat"><div class="au-stat-title">活跃安装（24h）</div><div class="au-stat-value">@o.ActiveInstalls24h</div></div>
+        <div class="au-stat"><div class="au-stat-title">ETag 命中率（24h）</div><div class="au-stat-value">@(o.ETagHitRate24h.ToString("P1"))</div></div>
+        <div class="au-stat"><div class="au-stat-title">用户</div><div class="au-stat-value">@o.Users</div></div>
+    </div>
+}
+else
+{
+    <Card Class="au-card">
+        <CardContent>
+            <Empty Class="au-empty">
+                <p class="au-state-desc">暂无数据</p>
+            </Empty>
+        </CardContent>
+    </Card>
+}
+
+@code {
+    private OverviewDto? _overview;
+    private bool _loading;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _loading = true;
+        try
+        {
+            var result = await Api.GetAsync<OverviewDto>($"{ApiRoutes.ManagePrefix}/overview");
+            if (result.IsSuccess && result.Data is not null)
+            {
+                _overview = result.Data;
+            }
+            else
+            {
+                Toast.Error(result.ErrorMessage ?? "加载概览失败", "加载失败");
+            }
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+}

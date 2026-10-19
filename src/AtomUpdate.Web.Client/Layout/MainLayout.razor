@@ -1,0 +1,219 @@
+@inherits LayoutComponentBase
+@inject AuthState Auth
+@inject NavigationManager Navigation
+@inject ApiClient Api
+@inject ToastService Toast
+@using AtomUpdate.Core.Constants
+@using AtomUpdate.Core.Models.Manage
+
+@* 外壳：AtomBlazor Sidebar（浅色 Sider 232 / 图标态 48，右细线）+ 顶栏（折叠入口 + 用户下拉）
+   + 浅灰内容区（留白由 PageContainer 负责）+ 页脚，尺寸令牌见 theme.css 的 --sidebar-width*。
+   登录态就绪前不渲染 @Body：页面 OnAfterRenderAsync 早于布局初始化执行，
+   提前发的请求不带 token → 401 → 被清态踢回登录页。 *@
+<SidebarProvider DefaultOpen="true">
+    <Sidebar Collapsible="true" Class="au-sider">
+        <SidebarHeader>
+            <div class="au-brand">
+                <span class="au-brand-mark">A</span>
+                <span class="au-brand-text">AtomUpdate</span>
+            </div>
+        </SidebarHeader>
+        <SidebarContent>
+            <SidebarGroup>
+                <SidebarMenu>
+                    @foreach (var item in MenuItems.Where(i => !i.RequirePlatformAdmin || Auth.IsPlatformAdmin))
+                    {
+                        <SidebarMenuItem>
+                            <SidebarMenuButton Href="@item.Href"
+                                               Match="@(item.Href == "/" ? NavLinkMatch.All : NavLinkMatch.Prefix)"
+                                               Tooltip="@item.Title">
+                                <LucideIcon Name="@item.Icon" Size="18" />
+                                <span>@item.Title</span>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    }
+                </SidebarMenu>
+            </SidebarGroup>
+        </SidebarContent>
+    </Sidebar>
+
+    <SidebarInset Class="au-main">
+        <header class="au-header">
+            <SidebarTrigger Class="au-trigger" />
+            <span class="au-spacer"></span>
+            @if (Auth.IsReady && Auth.Email is { } email)
+            {
+                <DropdownMenu>
+                    <DropdownMenuTrigger Class="au-user">
+                        <LucideIcon Name="circle-user" Size="18" />
+                        <span>@email</span>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                        <DropdownMenuItem Disabled="true">
+                            @email@(Auth.IsPlatformAdmin ? "（平台管理员）" : "")
+                        </DropdownMenuItem>
+                        <DropdownMenuItem OnClick="OpenChangePassword">修改密码</DropdownMenuItem>
+                        <DropdownMenuItem OnClick="SignOut">退出登录</DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            }
+        </header>
+
+        <div class="au-content">
+            @if (Auth.IsReady && Auth.IsAuthenticated)
+            {
+                @Body
+            }
+        </div>
+
+        <footer class="au-footer">
+            <div>AtomUpdate 管理后台</div>
+            <div class="au-meta">@Origin · @(RendererInfo.IsInteractive ? "交互已就绪" : "静态渲染（SSR）")</div>
+        </footer>
+    </SidebarInset>
+</SidebarProvider>
+
+<Dialog @bind-Open="_pwdDialogOpen">
+    <DialogContent Class="au-dialog">
+        <DialogHeader>
+            <DialogTitle>修改密码</DialogTitle>
+        </DialogHeader>
+        <EditForm Model="_pwdForm" OnSubmit="SubmitChangePasswordAsync">
+            <Field>
+                <FieldLabel For="old-pwd">原密码</FieldLabel>
+                <FieldContent>
+                    <Input Id="old-pwd" Type="InputType.Password" @bind-Value="_pwdForm.OldPassword" />
+                </FieldContent>
+            </Field>
+            <Field>
+                <FieldLabel For="new-pwd">新密码（至少 8 位）</FieldLabel>
+                <FieldContent>
+                    <Input Id="new-pwd" Type="InputType.Password" @bind-Value="_pwdForm.NewPassword" />
+                </FieldContent>
+            </Field>
+            <Field>
+                <FieldLabel For="confirm-pwd">确认新密码</FieldLabel>
+                <FieldContent>
+                    <Input Id="confirm-pwd" Type="InputType.Password" @bind-Value="_pwdForm.ConfirmPassword" />
+                </FieldContent>
+            </Field>
+        </EditForm>
+        <DialogFooter>
+            <DialogClose AsChild>
+                <Button Variant="ButtonVariant.Outline">取消</Button>
+            </DialogClose>
+            <Button Variant="ButtonVariant.Default" OnClick="SavePasswordAsync" Disabled="_pwdSaving">
+                @(_pwdSaving ? "保存中…" : "确认修改")
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
+
+@code {
+    private sealed record NavItem(string Href, string Icon, string Title, bool RequirePlatformAdmin = false);
+
+    private static readonly NavItem[] MenuItems =
+    [
+        new("/", "layout-dashboard", "概览"),
+        new("projects", "folder", "项目"),
+        new("apps", "app-window", "应用"),
+        new("releases", "cloud-upload", "版本发布"),
+        new("stats", "chart-column", "统计"),
+        new("check-logs", "scan-search", "检测记录"),
+        new("audit", "file-text", "审计日志"),
+        new("settings", "settings", "系统设置", RequirePlatformAdmin: true),
+        new("users", "user", "用户管理", RequirePlatformAdmin: true)
+    ];
+
+    private string Origin => new Uri(Navigation.BaseUri).Authority;
+
+    protected override void OnInitialized()
+    {
+        Auth.Changed += OnAuthChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await Auth.InitializeAsync();
+        if (!Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("login", replace: true);
+        }
+
+        StateHasChanged();
+    }
+
+    private void OnAuthChanged() => InvokeAsync(StateHasChanged);
+
+    private bool _pwdDialogOpen;
+    private bool _pwdSaving;
+    private PasswordForm _pwdForm = new();
+
+    private void OpenChangePassword()
+    {
+        _pwdForm = new PasswordForm();
+        _pwdDialogOpen = true;
+    }
+
+    private async Task SubmitChangePasswordAsync(EditContext context) => await SavePasswordAsync();
+
+    private async Task SavePasswordAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_pwdForm.OldPassword))
+        {
+            Toast.Error("请输入原密码");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_pwdForm.NewPassword) || _pwdForm.NewPassword.Length < 8)
+        {
+            Toast.Error("新密码至少 8 位");
+            return;
+        }
+
+        if (_pwdForm.NewPassword != _pwdForm.ConfirmPassword)
+        {
+            Toast.Error("两次输入的新密码不一致");
+            return;
+        }
+
+        _pwdSaving = true;
+        try
+        {
+            var result = await Api.SendAsync<object>(HttpMethod.Post,
+                $"{ApiRoutes.ManagePrefix}/auth/change-password",
+                new ChangePasswordRequest { OldPassword = _pwdForm.OldPassword, NewPassword = _pwdForm.NewPassword });
+            if (!result.IsSuccess)
+            {
+                Toast.Error(result.ErrorMessage ?? "修改密码失败", "修改失败");
+                return;
+            }
+
+            _pwdDialogOpen = false;
+            Toast.Success("密码已修改，下次登录请使用新密码");
+        }
+        finally
+        {
+            _pwdSaving = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SignOut()
+    {
+        await Auth.SignOutAsync();
+        Navigation.NavigateTo("login", replace: true);
+    }
+
+    private sealed class PasswordForm
+    {
+        public string OldPassword { get; set; } = "";
+        public string NewPassword { get; set; } = "";
+        public string ConfirmPassword { get; set; } = "";
+    }
+}

@@ -1,0 +1,363 @@
+@page "/releases"
+@inject ApiClient Api
+@inject ToastService Toast
+@inject NavigationManager Navigation
+
+<PageTitle>版本发布 - AtomUpdate 管理后台</PageTitle>
+
+<PageContainer Title="版本发布" Description="默认展示所有应用的版本，可通过项目/应用检索；管理版本草稿、通道发布与撤回">
+    <Extra>
+        <Button Variant="ButtonVariant.Default" OnClick="OpenCreate">新建草稿</Button>
+    </Extra>
+
+    <ChildContent>
+        @* 作用域由子页面链接带回时只读展示文本，避免用户误以为可切换；可点「重新选择」回到下拉。 *@
+        @if (_scopeLocked)
+            {
+                <div class="au-query">
+                    <div class="au-field">
+                        <span class="au-field-label">项目</span>
+                        <div class="au-field-value">@ProjectLabel</div>
+                    </div>
+                    <div class="au-field">
+                        <span class="au-field-label">应用</span>
+                        <div class="au-field-value">@AppLabel</div>
+                    </div>
+                    <div class="au-field au-field-actions">
+                        <Button Variant="ButtonVariant.Outline" OnClick="UnlockScope">重新选择</Button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="au-query">
+                    <div class="au-field">
+                        <span class="au-field-label">项目</span>
+                        <Select TValue="long?" Value="_projectId" ValueChanged="OnProjectValueChangedAsync">
+                            <SelectTrigger>
+                                <SelectValue Placeholder="全部项目" TValue="long?" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                @foreach (var project in _projects)
+                                {
+                                    <SelectItem Value="@((long?)project.Id)" Text="@($"{project.Name}（{project.Key}）")" TValue="long?">
+                                        @($"{project.Name}（{project.Key}）")
+                                    </SelectItem>
+                                }
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div class="au-field">
+                        <span class="au-field-label">应用</span>
+                        <Select TValue="long?" Value="_appId" ValueChanged="OnAppValueChangedAsync" Disabled="_projectId is null">
+                            <SelectTrigger>
+                                <SelectValue Placeholder="全部应用" TValue="long?" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                @foreach (var app in _apps)
+                                {
+                                    <SelectItem Value="@((long?)app.Id)" Text="@($"{app.Name}（{app.AppId}）")" TValue="long?">
+                                        @($"{app.Name}（{app.AppId}）")
+                                    </SelectItem>
+                                }
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div class="au-field au-field-actions">
+                        <Button Variant="ButtonVariant.Outline" OnClick="ResetFilterAsync">查看全部</Button>
+                    </div>
+                </div>
+            }
+
+            <Separator Class="au-divider-query" />
+
+            <div class="au-toolbar">
+                <span class="au-meta">@($"{ScopeLabel} · 共 {_total} 条 · 第 {_page} / {LastPage} 页")</span>
+            </div>
+
+            @if (_ready)
+            {
+                <DataTable TData="ManageReleaseDto" Data="_items" ShowToolbar="false" ShowPagination="false" InitialPageSize="200" IsLoading="_loading">
+                <Columns>
+                    @if (!_scopeLocked)
+                    {
+                        <DataTableColumn TData="ManageReleaseDto" TValue="string" Property="@(c => c.ProjectName)" Header="项目" />
+                        <DataTableColumn TData="ManageReleaseDto" TValue="string" Property="@(c => c.AppName)" Header="应用" />
+                    }
+                    <DataTableColumn TData="ManageReleaseDto" TValue="string" Property="@(c => c.Version)" Header="版本" />
+                    <DataTableColumn TData="ManageReleaseDto" TValue="string" Property="@(c => c.Version)" Header="包架构">
+                        <CellTemplate Context="row">
+                            <div class="au-badges">
+                                @foreach (var arch in row!.Assets.Select(a => a.Arch).Distinct())
+                                {
+                                    <Badge Variant="BadgeVariant.Outline">@EnumLabels.Arch(arch)</Badge>
+                                }
+                            </div>
+                        </CellTemplate>
+                    </DataTableColumn>
+                    <DataTableColumn TData="ManageReleaseDto" TValue="ReleaseStatus" Property="@(c => c.Status)" Header="状态">
+                        <CellTemplate Context="row">
+                            <Badge Variant="@EnumLabels.StatusVariant(row!.Status)">@row.Status</Badge>
+                        </CellTemplate>
+                    </DataTableColumn>
+                    <DataTableColumn TData="ManageReleaseDto" TValue="bool" Property="@(c => c.ForceUpdate)" Header="强制更新">
+                        <CellTemplate Context="row">
+                            @if (row!.ForceUpdate)
+                            {
+                                <Badge Variant="BadgeVariant.SoftDestructive">强制</Badge>
+                            }
+                        </CellTemplate>
+                    </DataTableColumn>
+                    <DataTableColumn TData="ManageReleaseDto" TValue="string" Property="@(c => c.BuildNumber?.ToString() ?? string.Empty)" Header="构建号" />
+                    <DataTableColumn TData="ManageReleaseDto" TValue="string" Property="@(c => c.PublishedAt?.ToString("yyyy-MM-dd HH:mm") ?? string.Empty)" Header="发布时间" />
+                    <DataTableColumn TData="ManageReleaseDto" TValue="string" Property="@(c => c.Version)" Header="操作">
+                        <CellTemplate Context="row">
+                            @if (ScopeForRow(row!) is { } rowScope)
+                            {
+                                <div class="au-row-actions">
+                                    @if (row!.Status is ReleaseStatus.Draft or ReleaseStatus.Prerelease)
+                                    {
+                                        <Button Variant="ButtonVariant.Link" OnClick="x => Go(rowScope.PublishUrl(row.Id))">发布</Button>
+                                        <Button Variant="ButtonVariant.Link" OnClick="x => Go(rowScope.EditUrl(row.Id))">编辑</Button>
+                                    }
+                                    @if (row.Status == ReleaseStatus.Published)
+                                    {
+                                        <Button Variant="ButtonVariant.Link" Class="au-link-danger" OnClick="x => Go(rowScope.UnpublishUrl(row.Id))">撤回</Button>
+                                    }
+                                    @if (row.Status is ReleaseStatus.Draft or ReleaseStatus.Withdrawn)
+                                    {
+                                        <Button Variant="ButtonVariant.Link" Class="au-link-danger" OnClick="x => AskDelete(row)">删除</Button>
+                                    }
+                                    <Button Variant="ButtonVariant.Link" OnClick="x => Go(rowScope.DetailUrl(row.Id))">详情</Button>
+                                </div>
+                            }
+                        </CellTemplate>
+                    </DataTableColumn>
+                </Columns>
+                </DataTable>
+
+                <div class="au-toolbar au-pager">
+                    <span class="au-spacer"></span>
+                    <div class="au-btn-row">
+                        <Button Disabled="_page <= 1 || _loading" OnClick="x => GoAsync(_page - 1)">上一页</Button>
+                        <span class="au-meta">第 @_page 页 / 共 @LastPage 页（@_total 条）</span>
+                        <Button Disabled="_page >= LastPage || _loading" OnClick="x => GoAsync(_page + 1)">下一页</Button>
+                    </div>
+                </div>
+            }
+
+            <Dialog @bind-Open="_deleteDialogOpen">
+                <DialogContent Class="au-dialog">
+                    <DialogHeader>
+                        <DialogTitle>确认删除</DialogTitle>
+                    </DialogHeader>
+                    <p class="au-state-desc">确定要删除版本「@(_deleting?.Version)」吗？将同时删除其资产文件，此操作不可恢复。</p>
+                    <DialogFooter>
+                        <DialogClose AsChild>
+                            <Button Variant="ButtonVariant.Outline">取消</Button>
+                        </DialogClose>
+                        <Button Variant="ButtonVariant.Destructive" OnClick="DeleteAsync" Disabled="_deletingRow is null || _loading">
+                            确认删除
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+    </ChildContent>
+</PageContainer>
+
+@code {
+    private const int PageSize = 20;
+
+    private List<ManageReleaseDto> _items = [];
+    private List<ProjectDto> _projects = [];
+    private List<AppDto> _apps = [];
+    private long? _projectId;
+    private long? _appId;
+    private bool _loading;
+    private int _page = 1;
+    private int _total;
+    private bool _ready;
+    private bool _scopeLocked;
+    private bool _deleteDialogOpen;
+    private ManageReleaseDto? _deleting;
+    private ReleaseScope? _deletingRow;
+
+    private int LastPage => Math.Max(1, (int)Math.Ceiling(_total / (double)PageSize));
+
+    [Parameter, SupplyParameterFromQuery(Name = "projectId")]
+    public long? QueryProjectId { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "appId")]
+    public long? QueryAppId { get; set; }
+
+    private ReleaseScope? Scope => ReleaseScope.TryCreate(_projectId, _appId);
+
+    private string ProjectLabel => _projects.FirstOrDefault(p => p.Id == _projectId) is { } p ? $"{p.Name}（{p.Key}）" : $"项目 {_projectId}";
+
+    private string AppLabel => _apps.FirstOrDefault(a => a.Id == _appId) is { } a ? $"{a.Name}（{a.AppId}）" : $"应用 {_appId}";
+
+    private string? AppPlatform => _apps.FirstOrDefault(a => a.Id == _appId) is { } a ? EnumLabels.Platform(a.Platform) : null;
+
+    private string ScopeLabel => (_projectId, _appId) switch
+    {
+        (null, null) => "全部项目 · 全部应用",
+        (_, null) => $"{ProjectLabel} · 全部应用",
+        _ => $"{ProjectLabel} / {AppLabel}{(AppPlatform is { } plat ? $"（{plat}）" : "")}"
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadProjectsAsync();
+
+        // 子页面（新建/详情/编辑/发布/撤回）返回列表时携带作用域，这里还原选择后渲染表格
+        if (ReleaseScope.TryCreate(QueryProjectId, QueryAppId) is { } scope)
+        {
+            _projectId = scope.ProjectId;
+            _appId = scope.AppId;
+            _scopeLocked = true;
+            await LoadAppsAsync(scope.ProjectId);
+        }
+
+        // _ready 门控：表格在作用域确定后才挂载，避免初始化阶段先全量再按作用域的重复请求
+        _ready = true;
+        await LoadAsync(1);
+    }
+
+    // 服务端分页：固定每页 20 条，与审计日志分页风格一致
+    private Task GoAsync(int page) => LoadAsync(page);
+
+    private async Task LoadAsync(int page)
+    {
+        _loading = true;
+        try
+        {
+            var url = $"{ApiRoutes.ManagePrefix}/releases?page={page}&pageSize={PageSize}";
+            if (_projectId is { } pid)
+            {
+                url += $"&projectId={pid}";
+            }
+
+            if (_appId is { } aid)
+            {
+                url += $"&appId={aid}";
+            }
+
+            var result = await Api.GetAsync<PagedResult<ManageReleaseDto>>(url);
+            if (result.IsSuccess && result.Data is not null)
+            {
+                _items = result.Data.Items.ToList();
+                _total = result.Data.Total;
+                _page = page;
+            }
+            else
+            {
+                Toast.Error(result.ErrorMessage ?? "加载版本失败", "加载失败");
+            }
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Go(string url) => Navigation.NavigateTo(url);
+
+    private void AskDelete(ManageReleaseDto row)
+    {
+        if (ScopeForRow(row) is not { } rowScope)
+        {
+            return;
+        }
+
+        _deleting = row;
+        _deletingRow = rowScope;
+        _deleteDialogOpen = true;
+    }
+
+    /// <summary>受限删除：后端仅允许草稿/已撤回版本，发布中版本需先撤回（409 提示）。</summary>
+    private async Task DeleteAsync()
+    {
+        if (_deleting is not { } row || _deletingRow is not { } rowScope)
+        {
+            return;
+        }
+
+        var result = await Api.SendAsync<object>(HttpMethod.Delete, rowScope.ApiUrl(row.Id));
+        _deleteDialogOpen = false;
+        if (result.IsSuccess)
+        {
+            Toast.Success("已删除");
+            await LoadAsync(_page);
+        }
+        else
+        {
+            Toast.Error(result.ErrorMessage ?? "删除版本失败", "删除失败");
+        }
+    }
+
+    private ReleaseScope? ScopeForRow(ManageReleaseDto row) => ReleaseScope.TryCreate(row.ProjectId, row.AppId);
+
+    private async Task UnlockScope()
+    {
+        _scopeLocked = false;
+        _projectId = null;
+        _appId = null;
+        Navigation.NavigateTo("/releases");
+        await LoadAsync(1);
+    }
+
+    private Task ResetFilterAsync()
+    {
+        _projectId = null;
+        _appId = null;
+        _apps = [];
+        return LoadAsync(1);
+    }
+
+    private void OpenCreate()
+    {
+        Go(Scope is { } scope ? scope.CreateUrl() : "/releases/new");
+    }
+
+    private async Task OnProjectValueChangedAsync(long? projectId)
+    {
+        _projectId = projectId;
+        _appId = null;
+        if (projectId is { } pid)
+        {
+            await LoadAppsAsync(pid);
+        }
+
+        await LoadAsync(1);
+    }
+
+    private Task OnAppValueChangedAsync(long? appId)
+    {
+        _appId = appId;
+        return LoadAsync(1);
+    }
+
+    private async Task LoadProjectsAsync()
+    {
+        var projects = await Api.GetAsync<PagedResult<ProjectDto>>($"{ApiRoutes.ManagePrefix}/projects?page=1&pageSize=200");
+        if (projects.IsSuccess && projects.Data is not null)
+        {
+            _projects = projects.Data.Items.ToList();
+        }
+    }
+
+    private async Task LoadAppsAsync(long projectId)
+    {
+        var apps = await Api.GetAsync<PagedResult<AppDto>>($"{ApiRoutes.ManagePrefix}/projects/{projectId}/apps?page=1&pageSize=200");
+        if (apps.IsSuccess && apps.Data is not null)
+        {
+            _apps = apps.Data.Items.ToList();
+        }
+    }
+}

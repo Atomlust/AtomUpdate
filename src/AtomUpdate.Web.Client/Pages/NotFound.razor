@@ -1,0 +1,21 @@
+@page "/not-found"
+@layout MainLayout
+@inject NavigationManager Navigation
+
+<PageTitle>页面不存在</PageTitle>
+
+<PageContainer Title="页面不存在" HideBreadcrumb="true">
+    <Card Class="au-card">
+        <div class="au-state-block">
+            <div class="au-state-code">404</div>
+            <div class="au-state-title">抱歉，你访问的内容不存在。</div>
+            <p class="au-state-desc">地址可能已变更，或该实体已被删除。</p>
+            @* AtomBlazor 无 LinkButton 组件（Button 亦无 Href 参数），改用 Button + 编程导航。 *@
+            <Button Variant="ButtonVariant.Default" OnClick="GoHome">返回首页</Button>
+        </div>
+    </Card>
+</PageContainer>
+
+@code {
+    private void GoHome() => Navigation.NavigateTo("/");
+}

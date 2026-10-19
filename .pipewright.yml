@@ -1,0 +1,125 @@
+version: 1
+
+stages:
+  # ============================================================
+  # 阶段一：拉取代码（所有分支共用）
+  # ============================================================
+  - id: stg_src
+    name: 代码源
+    kind: source
+    jobs:
+      - id: job_git_source
+        name: GitHub 源
+        type: git_source
+        # 具体仓库地址和凭据由 Pipewright 项目关联决定，无需在此重复填写
+
+  # ============================================================
+  # 阶段二：main 分支 → 构建 Dev 镜像并推送
+  # ============================================================
+  - id: stg_build_dev
+    name: 构建 Dev
+    kind: build
+    needs: [stg_src]
+    when:
+      branches: [main]          # 仅 main 分支触发
+    jobs:
+      - id: job_build_dev
+        name: 构建 Dev 镜像
+        type: build_image
+        config:
+          context: src/AtomUpdate.Web
+          dockerfile: Dockerfile
+          tag: dev-${PIPEWRIGHT_COMMIT_SHA}   # Dev 标签前缀
+
+      - id: job_push_dev
+        name: 推送 Dev 镜像
+        type: push_image
+        config:
+          registry: https://docker.atomlust.com
+          imageName: atomupdate
+          tag: dev-${PIPEWRIGHT_COMMIT_SHA}
+
+  # ============================================================
+  # 阶段三：main 分支 → SSH 发布 Dev
+  # ============================================================
+  - id: stg_deploy_dev
+    name: 部署 Dev
+    kind: deploy
+    needs: [stg_build_dev]
+    when:
+      branches: [main]
+    jobs:
+      - id: job_deploy_dev
+        name: SSH 部署到 Dev
+        type: deploy_ssh
+        config:
+          targetEnv: dev        # 引用 Pipewright 中配置的 dev 环境
+          # dev 环境的部署命令在平台中预先配置，例如：
+          # cd /opt/atomupdate && docker compose --env-file .env.dev -p atomupdate-dev up -d
+
+  # ============================================================
+  # 阶段四：release 分支 → 构建 Release 镜像并推送
+  # ============================================================
+  - id: stg_build_release
+    name: 构建 Release
+    kind: build
+    needs: [stg_src]
+    when:
+      branches: [release]       # 仅 release 分支触发
+    jobs:
+      - id: job_build_release
+        name: 构建 Release 镜像
+        type: build_image
+        config:
+          context: src/AtomUpdate.Web
+          dockerfile: Dockerfile
+          tag: release-${PIPEWRIGHT_COMMIT_SHA}   # Release 标签前缀
+
+      - id: job_push_release
+        name: 推送 Release 镜像
+        type: push_image
+        config:
+          registry: https://docker.atomlust.com
+          imageName: atomupdate
+          tag: release-${PIPEWRIGHT_COMMIT_SHA}
+
+  # ============================================================
+  # 阶段五：release 分支 → SSH 发布 Release
+  # ============================================================
+  - id: stg_deploy_release
+    name: 部署 Release
+    kind: deploy
+    needs: [stg_build_release]
+    when:
+      branches: [release]
+    jobs:
+      - id: job_deploy_release
+        name: SSH 部署到 Release
+        type: deploy_ssh
+        config:
+          targetEnv: release      # 引用 Pipewright 中配置的 release 环境
+          # release 环境的部署命令在平台中预先配置，例如：
+          # cd /opt/atomupdate && docker compose --env-file .env.release -p atomupdate-release up -d
+
+  # ============================================================
+  # 阶段六：通知（所有分支共用）
+  # ============================================================
+  - id: stg_notify
+    name: 通知
+    kind: notify
+    needs: [stg_deploy_dev, stg_deploy_release]
+    # 注意：needs 中引用的两个阶段只会有一个实际执行，
+    # 另一个会被 when 条件跳过，notify 阶段会在实际执行的部署完成后触发
+    jobs:
+      - id: job_notify
+        name: 发送部署通知
+        type: notify
+        config:
+          # 通知渠道在 Pipewright 的「设置 › 通知」中配置
+          # 这里可以指定通知模板和接收方
+          channel: default
+          template: |
+            ✅ 流水线执行完成
+            分支: $PIPEWRIGHT_BRANCH
+            提交: $PIPEWRIGHT_COMMIT_SHA
+            状态: 成功

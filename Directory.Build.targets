@@ -1,0 +1,31 @@
+<Project>
+  <!-- AtomBlazor 与 AtomBlazor.Primitives 两个 NuGet 包都发布了
+       THIRD-PARTY-NOTICES.txt 静态资产（包内第三方许可证清单误入 staticwebassets）。
+       两个包该文件的相对路径同名，.NET 11 的资源集合（ResourceAssetCollection）
+       不允许集合内出现重复资产路径——运行期构建 Razor 组件端点时直接抛
+       InvalidOperationException（"The static asset 'THIRD-PARTY-NOTICES.txt.gz'
+       is already mapped to ..."），应用无法启动。dotnet build 不报错、SSR 冒烟
+       测不出，只有真实跑宿主才暴露（资源集合解析在 ApplicationBuilder.Build 阶段）。
+       处置：在包资产读入之后（ResolveCoreStaticWebAssets）把该许可证文本从
+       StaticWebAsset / StaticWebAssetEndpoint 中剔除（匹配条件用 Contains 而非
+       EndsWith(".txt")：压缩变体 .br/.gz 若在目标执行时已成项也要覆盖）。它不是
+       运行时资源（无任何代码引用），包内的 LICENSE / NOTICE 文件不受影响；库的
+       其余静态资产（atomblazor.css / themes.css / primitives.css / js/*）全部保留。
+       注意：Remove 通配符对此类包资产不生效，须先按 Identity 条件批量收集、
+       再按收集到的规格移除。AtomBlazor 0.3.0 起两包均已修复（staticwebassets
+       不再含该文件，已对照 0.2.0/0.3.0 包内容确认），本目标当前为空操作；
+       仍保留作保险——库在活跃开发期（D:/Source/AtomBlazorUI，非 git 仓库），
+       若回归或版本回退会静默 reintroduce 启动崩溃。本文件同时必须拷进
+       Docker 镜像（见 src/AtomUpdate.Web/Dockerfile），否则镜像内目标不
+       执行、容器启动即崩。 -->
+  <Target Name="RemoveCollidingAtomBlazorPackageAssets" AfterTargets="ResolveCoreStaticWebAssets">
+    <ItemGroup>
+      <_CollidingPackageAssets Include="@(StaticWebAsset)"
+                               Condition="'%(SourceType)' == 'Package' AND $([System.String]::Copy('%(Identity)').Contains('THIRD-PARTY-NOTICES'))" />
+      <_CollidingPackageEndpoints Include="@(StaticWebAssetEndpoint)"
+                                  Condition="$([System.String]::Copy('%(Identity)').Contains('THIRD-PARTY-NOTICES'))" />
+      <StaticWebAsset Remove="@(_CollidingPackageAssets)" />
+      <StaticWebAssetEndpoint Remove="@(_CollidingPackageEndpoints)" />
+    </ItemGroup>
+  </Target>
+</Project>

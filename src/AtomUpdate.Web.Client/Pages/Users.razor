@@ -1,0 +1,397 @@
+@page "/users"
+@inject ApiClient Api
+@inject ToastService Toast
+@inject AuthState Auth
+
+<PageTitle>用户管理 - AtomUpdate 管理后台</PageTitle>
+
+<PageContainer Title="用户管理" Description="管理后台账号：新增、编辑、删除用户">
+    <Extra>
+        <Button Variant="ButtonVariant.Default" OnClick="OpenCreate">新建用户</Button>
+    </Extra>
+
+    <ChildContent>
+        <form class="au-query" @onsubmit="OnSearchAsync" @onsubmit:preventDefault>
+            <div class="au-field">
+                <span class="au-field-label">关键字</span>
+                <Input Type="InputType.Text" @bind-Value="_keyword" Placeholder="邮箱 / 用户名 / 显示名" />
+            </div>
+            <div class="au-field au-field-actions">
+                <Button Type="ButtonType.Submit" Variant="ButtonVariant.Default">查询</Button>
+                <Button Type="ButtonType.Button" Variant="ButtonVariant.Outline" OnClick="ResetFiltersAsync">重置</Button>
+            </div>
+        </form>
+
+        <Separator Class="au-divider-query" />
+
+        <div class="au-toolbar">
+            <span class="au-meta">共 @_total 条 · 第 @_page / @LastPage 页</span>
+        </div>
+
+        <DataTable TData="UserDto" Data="_items" ShowToolbar="false" ShowPagination="false" InitialPageSize="200" IsLoading="_loading">
+            <Columns>
+                <DataTableColumn TData="UserDto" TValue="string" Property="@(c => c.Email)" Header="邮箱" />
+                <DataTableColumn TData="UserDto" TValue="string" Property="@(c => c.UserName ?? string.Empty)" Header="用户名">
+                    <CellTemplate Context="row">
+                        @(row!.UserName ?? "—")
+                    </CellTemplate>
+                </DataTableColumn>
+                <DataTableColumn TData="UserDto" TValue="string" Property="@(c => c.DisplayName ?? string.Empty)" Header="显示名" />
+                <DataTableColumn TData="UserDto" TValue="bool" Property="@(c => c.IsPlatformAdmin)" Header="角色">
+                    <CellTemplate Context="row">
+                        @if (row!.IsPlatformAdmin)
+                        {
+                            <Badge Variant="BadgeVariant.Secondary">平台管理员</Badge>
+                        }
+                        else
+                        {
+                            <Badge Variant="BadgeVariant.Outline">普通用户</Badge>
+                        }
+                    </CellTemplate>
+                </DataTableColumn>
+                <DataTableColumn TData="UserDto" TValue="EntityStatus" Property="@(c => c.Status)" Header="状态">
+                    <CellTemplate Context="row">
+                        <Badge Variant="@(row!.Status == EntityStatus.Active ? BadgeVariant.SoftSuccess : BadgeVariant.SoftDestructive)">@row.Status</Badge>
+                    </CellTemplate>
+                </DataTableColumn>
+                <DataTableColumn TData="UserDto" TValue="DateTimeOffset" Property="@(c => c.CreatedAt)" Header="创建时间">
+                    <CellTemplate Context="row">
+                        @row!.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                    </CellTemplate>
+                </DataTableColumn>
+                <DataTableColumn TData="UserDto" TValue="string" Property="@(c => c.Email)" Header="操作">
+                    <CellTemplate Context="row">
+                        <div class="au-row-actions">
+                            <Button Variant="ButtonVariant.Link" OnClick="x => OpenEdit(row!)">编辑</Button>
+                            @if (row.IsBootstrapAdmin)
+                            {
+                                <Badge Variant="BadgeVariant.Outline">内置账号</Badge>
+                            }
+                            else
+                            {
+                                <Button Variant="ButtonVariant.Link" OnClick="x => ConfirmDelete(row!)">删除</Button>
+                            }
+                        </div>
+                    </CellTemplate>
+                </DataTableColumn>
+            </Columns>
+        </DataTable>
+
+        <div class="au-toolbar au-pager">
+            <span class="au-spacer"></span>
+            <div class="au-btn-row">
+                <Button Disabled="_page <= 1 || _loading" OnClick="x => GoAsync(_page - 1)">上一页</Button>
+                <span class="au-meta">第 @_page 页 / 共 @LastPage 页（@_total 条）</span>
+                <Button Disabled="_page >= LastPage || _loading" OnClick="x => GoAsync(_page + 1)">下一页</Button>
+            </div>
+        </div>
+    </ChildContent>
+</PageContainer>
+
+<Dialog @bind-Open="_userDialogOpen">
+    <DialogContent Class="au-dialog">
+        <DialogHeader>
+            <DialogTitle>@(_editing is null ? "新建用户" : "编辑用户")</DialogTitle>
+        </DialogHeader>
+        <EditForm Model="_form" OnSubmit="SubmitUserAsync">
+            <Field>
+                <FieldLabel For="user-email">邮箱</FieldLabel>
+                <FieldContent>
+                    @if (_editing is null)
+                    {
+                        <Input Id="user-email" Type="InputType.Email" @bind-Value="_form.Email" Placeholder="admin@example.com" />
+                    }
+                    else
+                    {
+                        <div class="au-field-value">@_form.Email</div>
+                    }
+                </FieldContent>
+            </Field>
+            <Field>
+                <FieldLabel For="user-password">@(_editing is null ? "密码" : "新密码（留空不改）")</FieldLabel>
+                <FieldContent>
+                    <Input Id="user-password" Type="InputType.Password" @bind-Value="_form.Password" Placeholder="@(_editing is null ? "至少 8 位" : "留空表示不修改")" />
+                </FieldContent>
+            </Field>
+            <Field>
+                <FieldLabel For="user-username">用户名</FieldLabel>
+                <FieldContent>
+                    <Input Id="user-username" Type="InputType.Text" @bind-Value="_form.UserName"
+                           Placeholder="@(_editing is null ? "可选；设置后可用用户名登录" : "清空则仅邮箱登录")" />
+                </FieldContent>
+            </Field>
+            <Field>
+                <FieldLabel For="user-display">显示名</FieldLabel>
+                <FieldContent>
+                    <Input Id="user-display" Type="InputType.Text" @bind-Value="_form.DisplayName" Placeholder="可选" />
+                </FieldContent>
+            </Field>
+            @if (_editing is not null)
+            {
+                <Field>
+                    <FieldLabel For="user-status">状态</FieldLabel>
+                    <FieldContent>
+                        <Select @bind-Value="_form.Status" TValue="EntityStatus">
+                            <SelectTrigger>
+                                <SelectValue TValue="EntityStatus" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem Value="@EntityStatus.Active" Text="启用" TValue="EntityStatus">启用</SelectItem>
+                                <SelectItem Value="@EntityStatus.Disabled" Text="停用" TValue="EntityStatus">停用</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </FieldContent>
+                </Field>
+            }
+            @if (Auth.IsPlatformAdmin)
+            {
+                <Field>
+                    <FieldLabel For="user-admin">平台管理员</FieldLabel>
+                    <FieldContent>
+                        <Switch Id="user-admin" @bind-Checked="_form.IsPlatformAdmin" />
+                    </FieldContent>
+                </Field>
+            }
+        </EditForm>
+        <DialogFooter>
+            <DialogClose AsChild>
+                <Button Variant="ButtonVariant.Outline">取消</Button>
+            </DialogClose>
+            <Button Variant="ButtonVariant.Default" OnClick="SaveAsync" Disabled="_saving">
+                @(_saving ? "保存中…" : "保存")
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
+
+<Dialog @bind-Open="_deleteDialogOpen">
+    <DialogContent Class="au-dialog">
+        <DialogHeader>
+            <DialogTitle>确认删除</DialogTitle>
+        </DialogHeader>
+        <p class="au-state-desc">确定要删除用户「@(_deleting?.Email)」吗？此操作不可恢复。</p>
+        <DialogFooter>
+            <DialogClose AsChild>
+                <Button Variant="ButtonVariant.Outline">取消</Button>
+            </DialogClose>
+            <Button Variant="ButtonVariant.Destructive" OnClick="DeleteAsync" Disabled="_saving">
+                @(_saving ? "删除中…" : "确认删除")
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
+
+@code {
+    private const int PageSize = 20;
+
+    private List<UserDto> _items = [];
+    private int _total;
+    private string _keyword = "";
+    private bool _loading;
+    private int _page = 1;
+    private bool _userDialogOpen;
+    private bool _deleteDialogOpen;
+    private bool _saving;
+    private UserDto? _editing;
+    private UserDto? _deleting;
+    private UserForm _form = new();
+
+    private int LastPage => Math.Max(1, (int)Math.Ceiling(_total / (double)PageSize));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadAsync(1);
+    }
+
+    private Task OnSearchAsync() => LoadAsync(1);
+
+    private Task ResetFiltersAsync()
+    {
+        _keyword = "";
+        return LoadAsync(1);
+    }
+
+    private Task GoAsync(int page) => LoadAsync(page);
+
+    private async Task LoadAsync(int page)
+    {
+        _loading = true;
+        try
+        {
+            var url = $"{ApiRoutes.ManagePrefix}/users?page={page}&pageSize={PageSize}";
+            if (_keyword?.Trim() is { Length: > 0 } keyword)
+            {
+                url += $"&keyword={Uri.EscapeDataString(keyword)}";
+            }
+
+            var result = await Api.GetAsync<PagedResult<UserDto>>(url);
+            if (result.IsSuccess && result.Data is not null)
+            {
+                _items = result.Data.Items.ToList();
+                _total = result.Data.Total;
+                _page = page;
+            }
+            else
+            {
+                Toast.Error(result.ErrorMessage ?? "加载用户失败", "加载失败");
+            }
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OpenCreate()
+    {
+        _editing = null;
+        _form = new UserForm();
+        _userDialogOpen = true;
+    }
+
+    private void OpenEdit(UserDto user)
+    {
+        _editing = user;
+        _form = new UserForm
+        {
+            Email = user.Email,
+            UserName = user.UserName ?? "",
+            DisplayName = user.DisplayName ?? "",
+            Status = user.Status,
+            IsPlatformAdmin = user.IsPlatformAdmin
+        };
+        _userDialogOpen = true;
+    }
+
+    private void ConfirmDelete(UserDto user)
+    {
+        _deleting = user;
+        _deleteDialogOpen = true;
+    }
+
+    private async Task SubmitUserAsync(EditContext context)
+    {
+        await SaveAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_editing is null && string.IsNullOrWhiteSpace(_form.Email))
+        {
+            Toast.Error("邮箱必填");
+            return;
+        }
+
+        if (_editing is null && string.IsNullOrWhiteSpace(_form.Password))
+        {
+            Toast.Error("密码必填");
+            return;
+        }
+
+        // 用户名填写时至少 3 位（与后端校验一致）
+        var userNameInput = _form.UserName?.Trim();
+        if (userNameInput is { Length: > 0 } && userNameInput.Length < 3)
+        {
+            Toast.Error("用户名至少 3 位");
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            if (_editing is null)
+            {
+                var created = await Api.SendAsync<UserDto>(HttpMethod.Post,
+                    $"{ApiRoutes.ManagePrefix}/users",
+                    new UserCreateRequest
+                    {
+                        Email = _form.Email,
+                        Password = _form.Password!,
+                        UserName = userNameInput is { Length: > 0 } ? userNameInput : null,
+                        DisplayName = string.IsNullOrWhiteSpace(_form.DisplayName) ? null : _form.DisplayName,
+                        IsPlatformAdmin = Auth.IsPlatformAdmin ? _form.IsPlatformAdmin : null
+                    });
+                if (!created.IsSuccess)
+                {
+                    Toast.Error(created.ErrorMessage ?? "保存失败", "保存失败");
+                    return;
+                }
+            }
+            else
+            {
+                // 用户名：与原值一致=不改（null）；变化=提交新值；清空=提交空串（后端清除用户名）
+                var originalUserName = _editing.UserName ?? "";
+                var userNameChanged = userNameInput != originalUserName;
+                var updated = await Api.SendAsync<UserDto>(HttpMethod.Patch,
+                    $"{ApiRoutes.ManagePrefix}/users/{_editing.Id}",
+                    new UserUpdateRequest
+                    {
+                        DisplayName = string.IsNullOrWhiteSpace(_form.DisplayName) ? null : _form.DisplayName,
+                        UserName = userNameChanged ? userNameInput : null,
+                        Status = _form.Status,
+                        Password = string.IsNullOrWhiteSpace(_form.Password) ? null : _form.Password,
+                        IsPlatformAdmin = Auth.IsPlatformAdmin ? _form.IsPlatformAdmin : null
+                    });
+                if (!updated.IsSuccess)
+                {
+                    Toast.Error(updated.ErrorMessage ?? "保存失败", "保存失败");
+                    return;
+                }
+            }
+
+            _userDialogOpen = false;
+            Toast.Success("已保存");
+            await LoadAsync(_page);
+        }
+        finally
+        {
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_deleting is null)
+        {
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var result = await Api.SendAsync<object>(HttpMethod.Delete,
+                $"{ApiRoutes.ManagePrefix}/users/{_deleting.Id}");
+            if (!result.IsSuccess)
+            {
+                Toast.Error(result.ErrorMessage ?? "删除失败", "删除失败");
+                return;
+            }
+
+            _deleteDialogOpen = false;
+            Toast.Success("已删除");
+            await LoadAsync(_page);
+        }
+        finally
+        {
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private sealed class UserForm
+    {
+        public string Email { get; set; } = "";
+        public string? Password { get; set; }
+        public string UserName { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+        public EntityStatus Status { get; set; } = EntityStatus.Active;
+        public bool IsPlatformAdmin { get; set; }
+    }
+}

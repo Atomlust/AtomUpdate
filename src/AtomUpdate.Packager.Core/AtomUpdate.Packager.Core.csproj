@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <Description>AtomUpdate 打包工具业务库：打包、增量、服务端上传与元数据推送（docs/05 §15）。</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AtomUpdate.Tests.Packager" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AtomUpdate.Core\AtomUpdate.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NuGet.Versioning" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,109 @@
+@page "/login"
+@layout BareLayout
+@inject ApiClient Api
+@inject NavigationManager Navigation
+@inject ToastService Toast
+
+<PageTitle>登录 - AtomUpdate 管理后台</PageTitle>
+
+@* 登录页形态：顶部品牌 + 居中白色卡片 + 底部版权；页面级样式见 Web/wwwroot/app.css（au-login*）。 *@
+<div class="au-login">
+    <div class="au-login-header">
+        <span class="au-login-mark">A</span>
+        <span class="au-login-title">AtomUpdate 管理后台</span>
+    </div>
+    <p class="au-login-desc">更新发布 · 应用策略 · 设备与审计</p>
+
+    <div class="au-login-main">
+        <div class="au-login-card">
+            <div class="au-login-tabs">账户密码登录</div>
+            @if (_setupRequired)
+            {
+                <p class="au-state-desc">
+                    首次部署：还没有管理员账号，
+                    <a href="setup">前往初始化设置</a>
+                </p>
+            }
+            <EditForm Model="_model" OnSubmit="HandleLoginAsync">
+                <Field>
+                    <FieldLabel For="login-email">用户名或邮箱</FieldLabel>
+                    <FieldContent>
+                        <Input Id="login-email"
+                               Type="InputType.Text"
+                               @bind-Value="_model.Email"
+                               Placeholder="用户名或邮箱"
+                               Disabled="_loading" />
+                    </FieldContent>
+                </Field>
+                <Field>
+                    <FieldLabel For="login-password">密码</FieldLabel>
+                    <FieldContent>
+                        <Input Id="login-password"
+                               Type="InputType.Password"
+                               @bind-Value="_model.Password"
+                               Placeholder="密码"
+                               Disabled="_loading" />
+                    </FieldContent>
+                </Field>
+                <Button Type="ButtonType.Submit"
+                        Variant="ButtonVariant.Default"
+                        Class="au-btn-block"
+                        Disabled="_loading">
+                    @(_loading ? "登录中…" : "登录")
+                </Button>
+            </EditForm>
+        </div>
+    </div>
+
+    <div class="au-login-footer">AtomUpdate ©2026</div>
+</div>
+
+@code {
+    private LoginModel _model = new();
+    private bool _loading;
+    private bool _setupRequired;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        // 空库（未初始化）时在登录页提示进入设置向导；查询失败静默跳过（不影响正常登录）
+        var status = await Api.GetSetupStatusAsync();
+        if (status.IsSuccess && status.Data is { Required: true })
+        {
+            _setupRequired = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleLoginAsync(EditContext context)
+    {
+        _loading = true;
+        StateHasChanged();
+        try
+        {
+            var result = await Api.LoginAsync(new LoginRequest { Email = _model.Email, Password = _model.Password });
+            if (result.IsSuccess)
+            {
+                Navigation.NavigateTo("/", replace: true);
+                return;
+            }
+
+            Toast.Error(result.ErrorMessage ?? "登录失败，请稍后重试", "登录失败");
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private sealed class LoginModel
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}

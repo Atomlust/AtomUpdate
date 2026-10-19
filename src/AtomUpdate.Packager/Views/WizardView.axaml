@@ -1,0 +1,274 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AtomUpdate.Packager.ViewModels"
+             xmlns:ext="using:AtomUpdate.Packager.Localization"
+             xmlns:conv="using:AtomUpdate.Packager.Converters"
+             xmlns:ac="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
+             xmlns:core="using:AtomUpdate.Core.Models.Manage"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="860" d:DesignHeight="680"
+             x:Class="AtomUpdate.Packager.Views.WizardView"
+             x:DataType="vm:WizardViewModel">
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16">
+
+    <!-- 步骤指示 -->
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="16" Margin="0,0,0,8">
+      <TextBlock Text="{ext:Loc Step1}" FontWeight="{Binding Step0Visible, Converter={x:Static conv:BoolFontConverter.Bold}}" />
+      <TextBlock Text="{ext:Loc Step2}" FontWeight="{Binding Step1Visible, Converter={x:Static conv:BoolFontConverter.Bold}}" />
+      <TextBlock Text="{ext:Loc Step3}" FontWeight="{Binding Step2Visible, Converter={x:Static conv:BoolFontConverter.Bold}}" />
+      <TextBlock Text="{ext:Loc Step4}" FontWeight="{Binding Step3Visible, Converter={x:Static conv:BoolFontConverter.Bold}}" />
+    </StackPanel>
+
+    <TextBlock Grid.Row="1" Text="{Binding DraftBanner}" Foreground="Gray" Margin="0,0,0,8" />
+
+    <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled">
+      <Panel>
+
+        <!-- Step1 目标 -->
+        <StackPanel IsVisible="{Binding Step0Visible}" Spacing="8">
+          <TextBlock Text="{ext:Loc LoginSection}" Foreground="Gray" TextWrapping="Wrap" />
+          <TextBox Text="{Binding LoginServerUrl, Mode=TwoWay}" PlaceholderText="https://api.example.com" />
+          <Grid ColumnDefinitions="*,12,*,Auto">
+            <TextBox Grid.Column="0" Text="{Binding LoginEmail, Mode=TwoWay}" PlaceholderText="{ext:Loc LoginEmail}" />
+            <TextBox Grid.Column="2" Text="{Binding LoginPassword, Mode=TwoWay}" PasswordChar="*" />
+            <Button Grid.Column="4" Content="{ext:Loc Login}" Command="{Binding LoginCommand}" Margin="8,0,0,0" />
+          </Grid>
+          <TextBlock Text="{Binding LoginStatus}" Foreground="Gray" TextWrapping="Wrap" />
+
+          <TextBlock Text="{ext:Loc SelectProject}" />
+          <ComboBox ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject, Mode=TwoWay}"
+                    HorizontalAlignment="Left" MinWidth="360">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="core:ProjectDto">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="{Binding Name}" />
+                  <TextBlock Text="{Binding Key}" Foreground="Gray" />
+                </StackPanel>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+
+          <TextBlock Text="{ext:Loc SelectApp}" />
+          <ComboBox ItemsSource="{Binding Apps}" SelectedItem="{Binding SelectedApp, Mode=TwoWay}"
+                    HorizontalAlignment="Left" MinWidth="360">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="core:AppDto">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="{Binding Name}" />
+                  <TextBlock Text="{Binding AppId}" Foreground="Gray" />
+                </StackPanel>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <TextBlock Text="{Binding LatestVersionText}" Foreground="Gray" />
+
+          <!-- 手动目标区：登录选中应用后自动填充并隐藏（平台由应用决定，无需再选） -->
+          <StackPanel IsVisible="{Binding ManualTargetVisible}" Spacing="8">
+            <Grid ColumnDefinitions="*,12,*">
+              <StackPanel Grid.Column="0" Spacing="4">
+                <TextBlock Text="{ext:Loc ProjectId}" />
+                <TextBox Text="{Binding ProjectId, Mode=TwoWay}" PlaceholderText="42" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Spacing="4">
+                <TextBlock Text="{ext:Loc AppId}" />
+                <TextBox Text="{Binding AppId, Mode=TwoWay}" PlaceholderText="7" />
+              </StackPanel>
+            </Grid>
+            <Grid ColumnDefinitions="*,12,*">
+              <StackPanel Grid.Column="0" Spacing="4">
+                <TextBlock Text="{ext:Loc ProjectKey}" />
+                <TextBox Text="{Binding ProjectKey, Mode=TwoWay}" PlaceholderText="myproj" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Spacing="4">
+                <TextBlock Text="{ext:Loc AppBusinessId}" />
+                <TextBox Text="{Binding AppBusinessId, Mode=TwoWay}" PlaceholderText="com.example.app" />
+              </StackPanel>
+            </Grid>
+            <Grid ColumnDefinitions="120,*">
+              <TextBlock Grid.Column="0" Text="{ext:Loc Platform}" VerticalAlignment="Center" />
+              <ComboBox Grid.Column="1" SelectedItem="{Binding PlatformSelection, Mode=TwoWay}" HorizontalAlignment="Left" MinWidth="160">
+                <x:String>windows</x:String>
+                <x:String>macos</x:String>
+                <x:String>linux</x:String>
+                <x:String>ios</x:String>
+                <x:String>android</x:String>
+                <x:String>harmony</x:String>
+              </ComboBox>
+            </Grid>
+          </StackPanel>
+
+          <!-- 远程选择模式：平台只读展示（由选中应用决定） -->
+          <StackPanel IsVisible="{Binding ManualTargetVisible, Converter={x:Static ac:BoolConverters.Not}}" Spacing="8">
+            <Grid ColumnDefinitions="120,*">
+              <TextBlock Grid.Column="0" Text="{ext:Loc Platform}" VerticalAlignment="Center" Foreground="Gray" />
+              <TextBlock Grid.Column="1" Text="{Binding PlatformSelection}" VerticalAlignment="Center" />
+            </Grid>
+          </StackPanel>
+          <TextBlock Text="{ext:Loc Channels}" />
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <CheckBox Content="stable" IsChecked="{Binding ChannelStable, Mode=TwoWay}" />
+            <CheckBox Content="beta" IsChecked="{Binding ChannelBeta, Mode=TwoWay}" />
+            <CheckBox Content="rc" IsChecked="{Binding ChannelRc, Mode=TwoWay}" />
+            <CheckBox Content="preview" IsChecked="{Binding ChannelPreview, Mode=TwoWay}" />
+            <CheckBox Content="dev" IsChecked="{Binding ChannelDev, Mode=TwoWay}" />
+          </StackPanel>
+        </StackPanel>
+
+        <!-- Step2 打包 -->
+        <StackPanel IsVisible="{Binding Step1Visible}" Spacing="8">
+          <Grid ColumnDefinitions="*,12,*">
+            <StackPanel Grid.Column="0" Spacing="4">
+              <TextBlock Text="{ext:Loc Version}" />
+              <TextBox Text="{Binding Version, Mode=TwoWay}" PlaceholderText="1.2.0" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Spacing="4">
+              <TextBlock Text="{ext:Loc BuildNumber}" />
+              <TextBox Text="{Binding BuildNumber, Mode=TwoWay}" PlaceholderText="123" />
+            </StackPanel>
+          </Grid>
+          <TextBlock Text="{ext:Loc SourceDirectory}" />
+          <TextBlock Text="{ext:Loc PackHint}" Foreground="Gray" TextWrapping="Wrap" />
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBox Grid.Column="0" Text="{Binding SourceDirectory, Mode=TwoWay}" PlaceholderText=".\publish\win-x64" />
+            <Button Grid.Column="1" Content="{ext:Loc Browse}" Tag="source"
+                    Click="BrowseDirectoryClick" Margin="8,0,0,0" />
+          </Grid>
+          <Grid ColumnDefinitions="120,*,12,160,*">
+            <TextBlock Grid.Column="0" Text="{ext:Loc PackageType}" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" SelectedItem="{Binding PackageTypeSelection, Mode=TwoWay}">
+              <x:String>zip</x:String>
+              <x:String>exe</x:String>
+            </ComboBox>
+            <TextBlock Grid.Column="3" Text="{ext:Loc Architectures}" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="8">
+              <CheckBox Content="x86" IsChecked="{Binding ArchX86, Mode=TwoWay}" />
+              <CheckBox Content="x64" IsChecked="{Binding ArchX64, Mode=TwoWay}" />
+              <CheckBox Content="arm64" IsChecked="{Binding ArchArm64, Mode=TwoWay}" />
+            </StackPanel>
+          </Grid>
+          <CheckBox Content="{ext:Loc EnableDelta}" IsChecked="{Binding EnableDelta, Mode=TwoWay}" />
+          <StackPanel IsVisible="{Binding EnableDelta}" Spacing="8">
+            <TextBlock Text="{ext:Loc BaselineDirectory}" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Grid.Column="0" Text="{Binding BaselineDirectory, Mode=TwoWay}" />
+              <Button Grid.Column="1" Content="{ext:Loc Browse}" Tag="baseline"
+                      Click="BrowseDirectoryClick" Margin="8,0,0,0" />
+            </Grid>
+            <TextBlock Text="{ext:Loc FromVersion}" />
+            <TextBox Text="{Binding FromVersion, Mode=TwoWay}" PlaceholderText="1.1.0" />
+          </StackPanel>
+          <TextBlock Text="{ext:Loc OutputDirectory}" />
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBox Grid.Column="0" Text="{Binding OutputDirectory, Mode=TwoWay}" PlaceholderText="packs/" />
+            <Button Grid.Column="1" Content="{ext:Loc Browse}" Tag="output"
+                    Click="BrowseDirectoryClick" Margin="8,0,0,0" />
+          </Grid>
+          <TextBlock Text="{ext:Loc ExcludePatterns}" />
+          <TextBox Text="{Binding ExcludePatternsText, Mode=TwoWay}" AcceptsReturn="True" Height="72"
+                   PlaceholderText="logs/**&#x0a;**/*.tmp" TextWrapping="NoWrap" />
+          <Grid ColumnDefinitions="*,12,*">
+            <StackPanel Grid.Column="0" Spacing="4">
+              <TextBlock Text="{ext:Loc SilentArgs}" />
+              <TextBox Text="{Binding SilentArgs, Mode=TwoWay}" PlaceholderText="/S" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Spacing="4">
+              <TextBlock Text="{ext:Loc InstallArgs}" />
+              <TextBox Text="{Binding InstallArgs, Mode=TwoWay}" />
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+
+        <!-- Step3 日志 -->
+        <StackPanel IsVisible="{Binding Step2Visible}" Spacing="8">
+          <TextBlock Text="{ext:Loc NotesLanguage}" />
+          <ComboBox SelectedItem="{Binding NotesLanguage, Mode=TwoWay}" HorizontalAlignment="Left" MinWidth="120">
+            <x:String>en</x:String>
+            <x:String>zh</x:String>
+          </ComboBox>
+          <TextBlock Text="{ext:Loc NoteNew}" />
+          <TextBox Text="{Binding NoteNewText, Mode=TwoWay}" AcceptsReturn="True" Height="60" />
+          <TextBlock Text="{ext:Loc NoteImprovements}" />
+          <TextBox Text="{Binding NoteImprovementsText, Mode=TwoWay}" AcceptsReturn="True" Height="60" />
+          <TextBlock Text="{ext:Loc NoteFixes}" />
+          <TextBox Text="{Binding NoteFixesText, Mode=TwoWay}" AcceptsReturn="True" Height="60" />
+          <TextBlock Text="{ext:Loc NoteNotes}" />
+          <TextBox Text="{Binding NoteNotesText, Mode=TwoWay}" AcceptsReturn="True" Height="60" />
+          <TextBlock Text="{ext:Loc NotesHint}" Foreground="Gray" />
+        </StackPanel>
+
+        <!-- Step4 发布 -->
+        <StackPanel IsVisible="{Binding Step3Visible}" Spacing="8">
+          <Grid ColumnDefinitions="120,*,12,120,*">
+            <TextBlock Grid.Column="0" Text="{ext:Loc Status}" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" SelectedItem="{Binding StatusSelection, Mode=TwoWay}">
+              <x:String>draft</x:String>
+              <x:String>prerelease</x:String>
+            </ComboBox>
+            <TextBlock Grid.Column="3" Text="{ext:Loc MinSupportedVersion}" VerticalAlignment="Center" />
+            <TextBox Grid.Column="4" Text="{Binding MinSupportedVersion, Mode=TwoWay}" PlaceholderText="1.0.0" />
+          </Grid>
+          <CheckBox Content="{ext:Loc ForceUpdate}" IsChecked="{Binding ForceUpdate, Mode=TwoWay}" />
+          <CheckBox Content="{ext:Loc PublishNow}" IsChecked="{Binding PublishNow, Mode=TwoWay}" />
+
+          <!-- 执行进度 -->
+          <Border Background="{DynamicResource SystemAltLowColor}" CornerRadius="4" Padding="8" Margin="0,8,0,0">
+            <StackPanel Spacing="4">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="{Binding StageText}" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding DetailText}" />
+              </StackPanel>
+              <ProgressBar Minimum="0" Maximum="100" Value="{Binding Percent}" Height="6"
+                           IsIndeterminate="{Binding !Percent.HasValue}" />
+              <SelectableTextBlock Text="{Binding ResultSummary}" IsVisible="{Binding ResultSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+          </Border>
+
+          <!-- 错误详情（错误码+消息+堆栈可复制） -->
+          <StackPanel Spacing="4"
+                      IsVisible="{Binding ErrorSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="{Binding ErrorSummary}" Foreground="OrangeRed" TextWrapping="Wrap" />
+            <SelectableTextBlock Text="{Binding ErrorDetail}" Foreground="Gray" TextWrapping="Wrap" MaxHeight="120" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="{ext:Loc CopyError}" Command="{Binding CopyErrorCommand}" />
+              <TextBlock Text="{Binding CopyStatus}" VerticalAlignment="Center" Foreground="Green" />
+            </StackPanel>
+          </StackPanel>
+        </StackPanel>
+
+        <!-- 发布前二次确认 -->
+        <Border IsVisible="{Binding IsConfirming}" Background="{DynamicResource SystemAltLowColor}"
+                CornerRadius="8" Padding="16" VerticalAlignment="Center" HorizontalAlignment="Center"
+                MinWidth="420">
+          <StackPanel Spacing="12">
+            <TextBlock Text="{ext:Loc ConfirmTitle}" FontSize="16" FontWeight="SemiBold" />
+            <SelectableTextBlock Text="{Binding ConfirmSummary}" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+              <Button Content="{ext:Loc Cancel}" Command="{Binding CancelConfirmationCommand}" />
+              <Button Classes="accent" Content="{ext:Loc ConfirmPublish}"
+                      Command="{Binding ConfirmRunCommand}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </Panel>
+    </ScrollViewer>
+
+    <!-- 步骤错误提示 + 导航 -->
+    <Grid Grid.Row="3" Margin="0,12,0,0">
+      <TextBlock Text="{Binding StepError}" Foreground="OrangeRed" VerticalAlignment="Center"
+                 TextWrapping="Wrap" MaxWidth="560" />
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+        <Button Content="{ext:Loc Back}" Command="{Binding BackCommand}"
+                IsVisible="{Binding Step0Visible, Converter={x:Static conv:InverseBoolConverter.Instance}}" />
+        <Button Content="{ext:Loc Next}" Classes="accent"
+                Command="{Binding NextCommand}"
+                IsVisible="{Binding Step3Visible, Converter={x:Static conv:InverseBoolConverter.Instance}}" />
+        <Button Content="{ext:Loc Run}" Classes="accent"
+                Command="{Binding RequestRunCommand}" IsVisible="{Binding Step3Visible}" />
+        <Button Content="{ext:Loc Cancel}" Command="{Binding CancelRunCommand}"
+                IsEnabled="{Binding IsRunning}" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</UserControl>

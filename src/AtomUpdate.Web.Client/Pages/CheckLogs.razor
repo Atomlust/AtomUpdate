@@ -1,0 +1,175 @@
+@page "/check-logs"
+@inject ApiClient Api
+@inject ToastService Toast
+@using AtomUpdate.Core.Constants
+
+<PageTitle>检测记录 - AtomUpdate 管理后台</PageTitle>
+
+<PageContainer Title="检测记录" Description="客户端更新检查逐条快照（每应用仅保留最近 500 条）：时间戳、IP、当前版本与应用标识">
+    <ChildContent>
+        <form class="au-query" @onsubmit="OnSearchAsync" @onsubmit:preventDefault>
+            <div class="au-field">
+                <span class="au-field-label">应用</span>
+                <Select TValue="long?" Value="_appId" ValueChanged="OnAppChangedAsync">
+                    <SelectTrigger>
+                        <SelectValue Placeholder="全部应用" TValue="long?" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        @foreach (var app in _apps)
+                        {
+                            <SelectItem Value="@((long?)app.Id)" Text="@($"{app.Name}（{app.AppId}）")" TValue="long?">
+                                @($"{app.Name}（{app.AppId}）")
+                            </SelectItem>
+                        }
+                    </SelectContent>
+                </Select>
+            </div>
+            <div class="au-field">
+                <span class="au-field-label">关键字</span>
+                <Input Type="InputType.Text" @bind-Value="_keyword" Placeholder="应用标识 / 版本 / IP" />
+            </div>
+            <div class="au-field au-field-actions">
+                <Button Type="ButtonType.Submit" Variant="ButtonVariant.Default">查询</Button>
+                <Button Type="ButtonType.Button" Variant="ButtonVariant.Outline" OnClick="ResetFiltersAsync">重置</Button>
+            </div>
+        </form>
+
+        <Separator Class="au-divider-query" />
+
+        <div class="au-toolbar">
+            <span class="au-meta">共 @_total 条 · 第 @_page / @LastPage 页</span>
+        </div>
+
+        <DataTable TData="CheckLogDto" Data="_items" ShowToolbar="false" ShowPagination="false" InitialPageSize="200" IsLoading="_loading">
+            <Columns>
+                <DataTableColumn TData="CheckLogDto" TValue="DateTimeOffset" Property="@(c => c.CheckedAt)" Header="时间戳">
+                    <CellTemplate Context="row">
+                        @row!.CheckedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                    </CellTemplate>
+                </DataTableColumn>
+                <DataTableColumn TData="CheckLogDto" TValue="string" Property="@(c => c.AppKey)" Header="应用">
+                    <CellTemplate Context="row">
+                        @(row!.AppName is { Length: > 0 } name ? $"{name}（{row.AppKey}）" : row.AppKey)
+                    </CellTemplate>
+                </DataTableColumn>
+                <DataTableColumn TData="CheckLogDto" TValue="string" Property="@(c => c.CurrentVersion)" Header="当前版本" />
+                <DataTableColumn TData="CheckLogDto" TValue="string" Property="@(c => c.ClientIp ?? string.Empty)" Header="IP">
+                    <CellTemplate Context="row">
+                        @(row!.ClientIp ?? "—")
+                    </CellTemplate>
+                </DataTableColumn>
+                <DataTableColumn TData="CheckLogDto" TValue="bool" Property="@(c => c.HasUpdate)" Header="结果">
+                    <CellTemplate Context="row">
+                        @if (row!.ETagHit)
+                        {
+                            <Badge Variant="BadgeVariant.Outline">304 缓存</Badge>
+                        }
+                        else if (row.HasUpdate)
+                        {
+                            <Badge Variant="BadgeVariant.SoftSuccess">有更新</Badge>
+                        }
+                        else
+                        {
+                            <Badge Variant="BadgeVariant.Secondary">已最新</Badge>
+                        }
+                    </CellTemplate>
+                </DataTableColumn>
+            </Columns>
+        </DataTable>
+
+        <div class="au-toolbar au-pager">
+            <span class="au-spacer"></span>
+            <div class="au-btn-row">
+                <Button Disabled="_page <= 1 || _loading" OnClick="x => GoAsync(_page - 1)">上一页</Button>
+                <span class="au-meta">第 @_page 页 / 共 @LastPage 页（@_total 条）</span>
+                <Button Disabled="_page >= LastPage || _loading" OnClick="x => GoAsync(_page + 1)">下一页</Button>
+            </div>
+        </div>
+    </ChildContent>
+</PageContainer>
+
+@code {
+    private const int PageSize = 20;
+
+    private List<AppDto> _apps = [];
+    private List<CheckLogDto> _items = [];
+    private int _total;
+    private long? _appId;
+    private string _keyword = "";
+    private bool _loading;
+    private int _page = 1;
+
+    private int LastPage => Math.Max(1, (int)Math.Ceiling(_total / (double)PageSize));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        var appsResult = await Api.GetAsync<PagedResult<AppDto>>($"{ApiRoutes.ManagePrefix}/apps");
+        if (appsResult.IsSuccess && appsResult.Data is not null)
+        {
+            _apps = appsResult.Data.Items.ToList();
+        }
+
+        await LoadAsync(1);
+    }
+
+    private Task OnSearchAsync() => LoadAsync(1);
+
+    private Task OnAppChangedAsync(long? appId)
+    {
+        _appId = appId;
+        return LoadAsync(1);
+    }
+
+    private Task ResetFiltersAsync()
+    {
+        _appId = null;
+        _keyword = "";
+        return LoadAsync(1);
+    }
+
+    private Task GoAsync(int page) => LoadAsync(page);
+
+    private async Task LoadAsync(int page)
+    {
+        _loading = true;
+        try
+        {
+            var query = new List<string>();
+            if (_appId is { } appId)
+            {
+                query.Add($"appId={appId}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(_keyword))
+            {
+                query.Add($"keyword={Uri.EscapeDataString(_keyword.Trim())}");
+            }
+
+            query.Add($"page={page}");
+            query.Add($"pageSize={PageSize}");
+
+            var result = await Api.GetAsync<PagedResult<CheckLogDto>>(
+                $"{ApiRoutes.ManagePrefix}/stats/checks?{string.Join("&", query)}");
+            if (result.IsSuccess && result.Data is not null)
+            {
+                _items = result.Data.Items.ToList();
+                _total = result.Data.Total;
+                _page = page;
+            }
+            else
+            {
+                Toast.Error(result.ErrorMessage ?? "加载检测记录失败", "加载失败");
+            }
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+}

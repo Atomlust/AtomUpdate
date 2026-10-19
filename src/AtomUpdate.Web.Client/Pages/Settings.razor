@@ -1,0 +1,119 @@
+@page "/settings"
+@inject ApiClient Api
+@inject ToastService Toast
+@inject AuthState Auth
+@using AtomUpdate.Core.Constants
+
+<PageTitle>系统设置 - AtomUpdate 管理后台</PageTitle>
+
+<PageContainer Title="系统设置" Description="平台级运营参数：保存后即时生效，无需重启；未设置项使用默认值">
+    <ChildContent>
+        <div class="au-dialog" style="max-width: 560px;">
+            <EditForm Model="_form" OnSubmit="SaveAsync">
+                <Field>
+                    <FieldLabel For="set-retention">日志保留天数</FieldLabel>
+                    <FieldContent>
+                        <Input Id="set-retention" Type="InputType.Number" @bind-Value="_form.RetentionDays"
+                               Placeholder="默认 7；0 或负数表示关闭时间清理" />
+                        <span class="au-state-desc">运行日志（检测 / 下载 / 安装上报）按时间保留的天数。</span>
+                    </FieldContent>
+                </Field>
+                <Field>
+                    <FieldLabel For="set-limit">检测记录每应用上限</FieldLabel>
+                    <FieldContent>
+                        <Input Id="set-limit" Type="InputType.Number" @bind-Value="_form.CheckLogPerAppLimit"
+                               Placeholder="默认 500；0 或负数表示关闭数量裁剪" />
+                        <span class="au-state-desc">每个应用仅保留最近 N 条客户端检测记录，超出自动裁剪最旧。</span>
+                    </FieldContent>
+                </Field>
+                <div class="au-btn-row" style="margin-top: 8px;">
+                    <Button Type="ButtonType.Submit" Variant="ButtonVariant.Default" Disabled="_saving">
+                        @(_saving ? "保存中…" : "保存")
+                    </Button>
+                    <Button Type="ButtonType.Button" Variant="ButtonVariant.Outline" OnClick="ResetAsync" Disabled="_saving">
+                        重置为默认值
+                    </Button>
+                </div>
+            </EditForm>
+        </div>
+    </ChildContent>
+</PageContainer>
+
+@code {
+    private SettingsForm _form = new();
+    private bool _saving;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await Api.GetAsync<SettingsDto>($"{ApiRoutes.ManagePrefix}/settings");
+        if (result.IsSuccess && result.Data is not null)
+        {
+            _form.RetentionDays = result.Data.RetentionDays.ToString();
+            _form.CheckLogPerAppLimit = result.Data.CheckLogPerAppLimit.ToString();
+            StateHasChanged();
+        }
+        else
+        {
+            Toast.Error(result.ErrorMessage ?? "加载系统设置失败", "加载失败");
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!int.TryParse(_form.RetentionDays, out var retentionDays) ||
+            !int.TryParse(_form.CheckLogPerAppLimit, out var checkLogPerAppLimit) ||
+            retentionDays < 0 || checkLogPerAppLimit < 0)
+        {
+            Toast.Error("校验失败", "请输入非负整数（0 表示关闭对应清理）");
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var result = await Api.SendAsync<SettingsDto>(HttpMethod.Patch, $"{ApiRoutes.ManagePrefix}/settings", new
+            {
+                retentionDays,
+                checkLogPerAppLimit
+            });
+            if (result.IsSuccess && result.Data is not null)
+            {
+                _form.RetentionDays = result.Data.RetentionDays.ToString();
+                _form.CheckLogPerAppLimit = result.Data.CheckLogPerAppLimit.ToString();
+                Toast.Success("系统设置已更新，即时生效");
+            }
+            else
+            {
+                Toast.Error(result.ErrorMessage ?? "保存系统设置失败", "保存失败");
+            }
+        }
+        finally
+        {
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ResetAsync()
+    {
+        _form.RetentionDays = "7";
+        _form.CheckLogPerAppLimit = "500";
+        await SaveAsync();
+    }
+
+    private sealed class SettingsForm
+    {
+        public string RetentionDays { get; set; } = "";
+        public string CheckLogPerAppLimit { get; set; } = "";
+    }
+}

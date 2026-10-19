@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <ResourcePreloader />
+    @* AtomBlazor 样式链：atomblazor.css（Tailwind v4 基础层 + 组件类）→ themes.css（令牌默认值）
+       → theme.css（我们自写的主题令牌覆盖：黑/白中性 + 胶囊圆角，须晚于 themes.css 才能覆盖其 :root 默认值）
+       → app.css（业务类 au-*）。
+       资源路径 _content/AtomBlazor/ 取自 NuGet 包 ID（RCL 静态资源约定）。 *@
+    <link rel="stylesheet" href="@Assets["_content/AtomBlazor/atomblazor.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/AtomBlazor/css/themes.css"]" />
+    <link rel="stylesheet" href="@Assets["theme.css"]" />
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+    @* theme-init.js：首次绘制前应用已存主题，避免暗色偏好用户看到亮色闪屏。
+       data-default-dark="false"：无已存主题时固定浅色（本站只出浅色令牌，不跟随系统暗色）。 *@
+    <script src="@Assets["_content/AtomBlazor/js/theme-init.js"]" data-default-dark="false"></script>
+    <ImportMap />
+    <HeadOutlet @rendermode="InteractiveAuto" />
+</head>
+
+<body>
+    <Routes @rendermode="InteractiveAuto" />
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+</body>
+
+</html>

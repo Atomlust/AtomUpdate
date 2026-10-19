@@ -1,0 +1,30 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/AtomUpdate.Abstractions/AtomUpdate.Abstractions.csproj" />
+    <Project Path="src/AtomUpdate.Api/AtomUpdate.Api.csproj" />
+    <Project Path="src/AtomUpdate.Core/AtomUpdate.Core.csproj" />
+    <Project Path="src/AtomUpdate.Packager/AtomUpdate.Packager.csproj" />
+    <Project Path="src/AtomUpdate.Packager.Cli/AtomUpdate.Packager.Cli.csproj" />
+    <Project Path="src/AtomUpdate.Packager.Core/AtomUpdate.Packager.Core.csproj" />
+    <Project Path="src/AtomUpdate.Updater/AtomUpdate.Updater.csproj" />
+    <Project Path="src/AtomUpdate.Validation/AtomUpdate.Validation.csproj" />
+    <Project Path="src/AtomUpdate.Web.Client/AtomUpdate.Web.Client.csproj" />
+    <Project Path="src/AtomUpdate.Web/AtomUpdate.Web.csproj" />
+    <Project Path="src/AtomUpdate/AtomUpdate.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/AtomUpdate.Sample.Console/AtomUpdate.Sample.Console.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AtomUpdate.Tests.Api/AtomUpdate.Tests.Api.csproj" />
+    <Project Path="tests/AtomUpdate.Tests.Core/AtomUpdate.Tests.Core.csproj" />
+    <Project Path="tests/AtomUpdate.Tests.Packager/AtomUpdate.Tests.Packager.csproj" />
+    <Project Path="tests/AtomUpdate.Tests.Sdk/AtomUpdate.Tests.Sdk.csproj" />
+    <Project Path="tests/AtomUpdate.Tests.Updater/AtomUpdate.Tests.Updater.csproj" />
+  </Folder>
+</Solution>

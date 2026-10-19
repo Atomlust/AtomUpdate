@@ -1,0 +1,453 @@
+@page "/releases/new"
+@inject ApiClient Api
+@inject ToastService Toast
+@inject NavigationManager Navigation
+
+<PageTitle>新建草稿版本 - AtomUpdate 管理后台</PageTitle>
+
+<PageContainer Title="新建草稿版本" Description="为选定应用创建版本草稿：填写 full 包地址与 SHA-256，草稿在版本列表中再发布到通道">
+    <Extra>
+        <div class="au-form-actions">
+            <Button Variant="ButtonVariant.Default" OnClick="SaveAsync" Disabled="_saving">@(_saving ? "创建中…" : "创建草稿")</Button>
+            <Button Variant="ButtonVariant.Outline" OnClick="Cancel">取消</Button>
+        </div>
+    </Extra>
+
+    <ChildContent>
+        @* 作用域从列表页带入时只读展示文本，避免用户误以为可切换；可点「重新选择」回到下拉。 *@
+        @if (_scopeLocked)
+            {
+                <div class="au-query">
+                    <div class="au-field">
+                        <span class="au-field-label">项目</span>
+                        <div class="au-field-value">@ProjectLabel</div>
+                    </div>
+                    <div class="au-field">
+                        <span class="au-field-label">应用</span>
+                        <div class="au-field-value">@AppLabel</div>
+                    </div>
+                    @if (SelectedApp is { } lockedApp)
+                    {
+                        <div class="au-field">
+                            <span class="au-field-label">平台（由应用决定）</span>
+                            <div class="au-field-value">@EnumLabels.Platform(lockedApp.Platform)</div>
+                        </div>
+                    }
+                    <div class="au-field au-field-actions">
+                        <Button Variant="ButtonVariant.Outline" OnClick="UnlockScope">重新选择</Button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="au-query">
+                    <div class="au-field">
+                        <span class="au-field-label">项目</span>
+                        <Select TValue="long?" Value="_projectId" ValueChanged="OnProjectChangedAsync">
+                            <SelectTrigger>
+                                <SelectValue Placeholder="选择项目" TValue="long?" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                @foreach (var project in _projects)
+                                {
+                                    <SelectItem Value="@((long?)project.Id)" Text="@($"{project.Name}（{project.Key}）")" TValue="long?">
+                                        @($"{project.Name}（{project.Key}）")
+                                    </SelectItem>
+                                }
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div class="au-field">
+                        <span class="au-field-label">应用</span>
+                        <Select TValue="long?" Value="_appId" ValueChanged="OnAppChangedAsync" Disabled="_projectId is null">
+                            <SelectTrigger>
+                                <SelectValue Placeholder="选择应用" TValue="long?" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                @foreach (var app in _apps)
+                                {
+                                    <SelectItem Value="@((long?)app.Id)" Text="@($"{app.Name}（{app.AppId}）")" TValue="long?">
+                                        @($"{app.Name}（{app.AppId}）")
+                                    </SelectItem>
+                                }
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    @if (SelectedApp is { } selected)
+                    {
+                        <div class="au-field">
+                            <span class="au-field-label">平台（由应用决定）</span>
+                            <div class="au-field-value">@EnumLabels.Platform(selected.Platform)</div>
+                        </div>
+                    }
+                </div>
+            }
+
+            <Separator Class="au-divider-query" />
+
+            <div class="au-form-grid">
+                <Field>
+                    <FieldLabel For="rc-version">版本号（语义化版本）</FieldLabel>
+                    <FieldContent>
+                        <Input Id="rc-version" Type="InputType.Text" @bind-Value="_form.Version" Placeholder="1.2.3" />
+                    </FieldContent>
+                </Field>
+                <Field>
+                    <FieldLabel For="rc-build">构建号</FieldLabel>
+                    <FieldContent>
+                        @* AtomBlazor 的 NumericInput<TValue> 要求 TValue : struct（不支持 int?），
+                           可空语义经 Value/ValueChanged 桥接保住：0 视作未填写（null）。 *@
+                        <NumericInput TValue="int" Id="rc-build" Value="_form.BuildNumber ?? 0" ValueChanged="OnBuildNumberChanged" />
+                    </FieldContent>
+                </Field>
+            </div>
+
+            <div class="au-form-grid">
+                <Field>
+                    <FieldLabel For="rc-source">来源</FieldLabel>
+                    <FieldContent>
+                        <Select @bind-Value="_form.Source" TValue="AssetSource">
+                            <SelectTrigger>
+                                <SelectValue TValue="AssetSource" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem Value="@AssetSource.Upload" Text="上传文件" TValue="AssetSource">上传文件</SelectItem>
+                                <SelectItem Value="@AssetSource.Manual" Text="手动填写地址" TValue="AssetSource">手动填写地址</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </FieldContent>
+                </Field>
+                <Field>
+                    <FieldLabel For="rc-arch">包架构</FieldLabel>
+                    <FieldContent>
+                        <Select @bind-Value="_form.Arch" TValue="UpdateArch">
+                            <SelectTrigger>
+                                <SelectValue TValue="UpdateArch" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem Value="@UpdateArch.X64" Text="x64" TValue="UpdateArch">x64</SelectItem>
+                                <SelectItem Value="@UpdateArch.Arm64" Text="arm64" TValue="UpdateArch">arm64</SelectItem>
+                                <SelectItem Value="@UpdateArch.X86" Text="x86" TValue="UpdateArch">x86</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </FieldContent>
+                </Field>
+            </div>
+
+            @if (_form.Source is AssetSource.Upload)
+            {
+                <Field>
+                    <FieldLabel For="rc-file">上传版本包文件</FieldLabel>
+                    <FieldContent>
+                        <InputFile OnChange="OnFileSelectedAsync" Accept=".zip,.exe,.msi,.apk,.ipa,.tar.gz,.gz" />
+                    </FieldContent>
+                </Field>
+
+                @if (_uploading)
+                {
+                    <div class="au-field-value">上传中…</div>
+                }
+                else if (!string.IsNullOrEmpty(_uploadedFileName))
+                {
+                    <div class="au-field-value">
+                        已上传：@_uploadedFileName（@(_form.Size?.ToString("N0") ?? "?") 字节，SHA-256: @(_form.Sha256[..12])…）
+                    </div>
+                }
+            }
+            else
+            {
+                <Field>
+                    <FieldLabel For="rc-url">full 包下载地址</FieldLabel>
+                    <FieldContent>
+                        <Input Id="rc-url" Type="InputType.Url" @bind-Value="_form.AssetUrl" Placeholder="https://cdn.example.com/app-1.2.3-win-x64.zip" />
+                    </FieldContent>
+                </Field>
+
+                <div class="au-form-grid">
+                    <Field>
+                        <FieldLabel For="rc-sha">SHA-256</FieldLabel>
+                        <FieldContent>
+                            <Input Id="rc-sha" Type="InputType.Text" @bind-Value="_form.Sha256" Placeholder="64 位十六进制摘要" />
+                        </FieldContent>
+                    </Field>
+                    <Field>
+                        <FieldLabel For="rc-size">大小（字节）</FieldLabel>
+                        <FieldContent>
+                            <NumericInput TValue="long" Id="rc-size" Value="_form.Size ?? 0" ValueChanged="OnSizeChanged" Min="0" />
+                        </FieldContent>
+                    </Field>
+                </div>
+            }
+
+            <div class="au-form-grid">
+                <Field>
+                    <FieldLabel For="rc-min">最低支持版本（可选）</FieldLabel>
+                    <FieldContent>
+                        <Input Id="rc-min" Type="InputType.Text" @bind-Value="_form.MinSupportedVersion" Placeholder="1.0.0" />
+                    </FieldContent>
+                </Field>
+                <Field>
+                    <FieldLabel For="rc-force">强制更新</FieldLabel>
+                    <FieldContent>
+                        <Switch Id="rc-force" @bind-Checked="_form.ForceUpdate" />
+                    </FieldContent>
+                </Field>
+            </div>
+
+            <div>
+                <p class="au-form-hint">每行一条，行内支持 Markdown；留空的小节不会显示在版本说明中。</p>
+                <div class="au-notes-grid">
+                    <Field>
+                        <FieldLabel For="rc-note-added">新增</FieldLabel>
+                        <FieldContent>
+                            <Textarea Id="rc-note-added" @bind-Value="_form.NoteAdded" Rows="6" Placeholder="- 支持 ..." />
+                        </FieldContent>
+                    </Field>
+                    <Field>
+                        <FieldLabel For="rc-note-improved">优化</FieldLabel>
+                        <FieldContent>
+                            <Textarea Id="rc-note-improved" @bind-Value="_form.NoteImproved" Rows="6" Placeholder="- 改进 ..." />
+                        </FieldContent>
+                    </Field>
+                    <Field>
+                        <FieldLabel For="rc-note-fixed">修复</FieldLabel>
+                        <FieldContent>
+                            <Textarea Id="rc-note-fixed" @bind-Value="_form.NoteFixed" Rows="6" Placeholder="- 修正 ..." />
+                        </FieldContent>
+                    </Field>
+                    <Field>
+                        <FieldLabel For="rc-note-noticed">注意</FieldLabel>
+                        <FieldContent>
+                            <Textarea Id="rc-note-noticed" @bind-Value="_form.NoteNoticed" Rows="6" Placeholder="- 升级前请 ..." />
+                        </FieldContent>
+                    </Field>
+                </div>
+            </div>
+    </ChildContent>
+</PageContainer>
+
+@code {
+    [Parameter, SupplyParameterFromQuery(Name = "projectId")]
+    public long? QueryProjectId { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "appId")]
+    public long? QueryAppId { get; set; }
+
+    private List<ProjectDto> _projects = [];
+    private List<AppDto> _apps = [];
+    private long? _projectId;
+    private long? _appId;
+    private bool _scopeLocked;
+    private bool _saving;
+    private bool _uploading;
+    private string? _uploadedFileName;
+    private FormModel _form = new();
+
+    private string ProjectLabel => _projects.FirstOrDefault(p => p.Id == _projectId) is { } p ? $"{p.Name}（{p.Key}）" : $"项目 {_projectId}";
+
+    private string AppLabel => _apps.FirstOrDefault(a => a.Id == _appId) is { } a ? $"{a.Name}（{a.AppId}）" : $"应用 {_appId}";
+
+    private AppDto? SelectedApp => _apps.FirstOrDefault(a => a.Id == _appId);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadProjectsAsync();
+
+        if (ReleaseScope.TryCreate(QueryProjectId, QueryAppId) is { } scope)
+        {
+            _projectId = scope.ProjectId;
+            _appId = scope.AppId;
+            _scopeLocked = true;
+            await LoadAppsAsync(scope.ProjectId);
+        }
+
+        StateHasChanged();
+    }
+
+    private void UnlockScope()
+    {
+        _scopeLocked = false;
+        _projectId = null;
+        _appId = null;
+        _apps = [];
+        Navigation.NavigateTo("/releases/new");
+    }
+
+    private async Task LoadProjectsAsync()
+    {
+        var projects = await Api.GetAsync<PagedResult<ProjectDto>>($"{ApiRoutes.ManagePrefix}/projects?page=1&pageSize=200");
+        if (projects.IsSuccess && projects.Data is not null)
+        {
+            _projects = projects.Data.Items.ToList();
+        }
+    }
+
+    private async Task OnProjectChangedAsync(long? projectId)
+    {
+        _projectId = projectId;
+        _appId = null;
+        _apps = [];
+        if (projectId is { } pid)
+        {
+            await LoadAppsAsync(pid);
+        }
+
+        StateHasChanged();
+    }
+
+    private void OnAppChangedAsync(long? appId)
+    {
+        _appId = appId;
+    }
+
+    private async Task LoadAppsAsync(long projectId)
+    {
+        var apps = await Api.GetAsync<PagedResult<AppDto>>($"{ApiRoutes.ManagePrefix}/projects/{projectId}/apps?page=1&pageSize=200");
+        if (apps.IsSuccess && apps.Data is not null)
+        {
+            _apps = apps.Data.Items.ToList();
+        }
+    }
+
+    private async Task OnFileSelectedAsync(InputFileChangeEventArgs e)
+    {
+        if (ReleaseScope.TryCreate(_projectId, _appId) is not { } scope)
+        {
+            Toast.Error("请先选择项目与应用");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_form.Version))
+        {
+            Toast.Error("请先填写版本号");
+            return;
+        }
+
+        var file = e.File;
+        if (file is null || file.Size is 0)
+        {
+            Toast.Error("文件无效");
+            return;
+        }
+
+        _uploading = true;
+        StateHasChanged();
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            using var stream = file.OpenReadStream(maxAllowedSize: 500_000_000);
+            content.Add(new StreamContent(stream), "file", file.Name);
+
+            var result = await Api.SendAsync<AssetUploadResult>(HttpMethod.Post,
+                $"{ApiRoutes.ManagePrefix}/projects/{scope.ProjectId}/apps/{scope.AppId}/upload?version={Uri.EscapeDataString(_form.Version)}",
+                content);
+            if (!result.IsSuccess)
+            {
+                Toast.Error(result.ErrorMessage ?? "文件上传失败", "上传失败");
+                return;
+            }
+
+            _form.AssetUrl = result.Data!.Url;
+            _form.Sha256 = result.Data.Sha256;
+            _form.Size = result.Data.Size;
+            _uploadedFileName = result.Data.Filename;
+            Toast.Success("文件已上传");
+        }
+        finally
+        {
+            _uploading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (ReleaseScope.TryCreate(_projectId, _appId) is not { } scope)
+        {
+            Toast.Error("请选择项目与应用");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_form.Version))
+        {
+            Toast.Error("版本号必填");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_form.AssetUrl) || string.IsNullOrWhiteSpace(_form.Sha256))
+        {
+            Toast.Error("请先上传版本包文件");
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var notes = NoteSections.ToInput(_form.NoteAdded, _form.NoteImproved, _form.NoteFixed, _form.NoteNoticed);
+            var result = await Api.SendAsync<ReleaseDto>(HttpMethod.Post, scope.CreateApiUrl,
+                new ReleaseCreateRequest
+                {
+                    Version = _form.Version,
+                    BuildNumber = _form.BuildNumber,
+                    ForceUpdate = _form.ForceUpdate,
+                    MinSupportedVersion = _form.MinSupportedVersion,
+                    Assets =
+                    [
+                        new ReleaseAssetInput
+                        {
+                            Kind = AssetKind.Full,
+                            Arch = _form.Arch,
+                            PackageType = PackageType.Zip,
+                            Url = _form.AssetUrl,
+                            Sha256 = _form.Sha256,
+                            Size = _form.Size
+                        }
+                    ],
+                    Notes = notes
+                });
+            if (!result.IsSuccess)
+            {
+                Toast.Error(result.ErrorMessage ?? "创建失败", "创建失败");
+                return;
+            }
+
+            Toast.Success("草稿已创建");
+            Navigation.NavigateTo(result.Data is { } created ? scope.DetailUrl(created.Id) : scope.ListUrl);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void OnBuildNumberChanged(int value) => _form.BuildNumber = value == 0 ? null : value;
+
+    private void OnSizeChanged(long value) => _form.Size = value;
+
+    private void Cancel() =>
+        Navigation.NavigateTo(ReleaseScope.TryCreate(_projectId, _appId)?.ListUrl ?? "/releases");
+
+    private sealed class FormModel
+    {
+        public AssetSource Source { get; set; } = AssetSource.Upload;
+        public string Version { get; set; } = "";
+        public UpdateArch Arch { get; set; } = UpdateArch.X64;
+        public int? BuildNumber { get; set; }
+        public string AssetUrl { get; set; } = "";
+        public string Sha256 { get; set; } = "";
+        public long? Size { get; set; }
+        public string? MinSupportedVersion { get; set; }
+        public bool ForceUpdate { get; set; }
+        public string? NoteAdded { get; set; }
+        public string? NoteImproved { get; set; }
+        public string? NoteFixed { get; set; }
+        public string? NoteNoticed { get; set; }
+    }
+
+    private enum AssetSource { Upload, Manual }
+}

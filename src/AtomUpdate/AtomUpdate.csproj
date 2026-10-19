@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <PackageId>AtomUpdate</PackageId>
+    <Description>AtomUpdate 客户端 SDK：检查更新、下载与校验、安装调度、上报补报与标准更新器集成。</Description>
+    <!-- 内嵌 AOT 更新器产物目录（04 §6），约定布局 artifacts/updater/{rid}/native/AtomUpdate.Updater[.exe]，
+         打包后即为 NuGet 原生资产路径 runtimes/{rid}/native/。CI 先按 6 个 RID publish 再 pack；
+         本地缺失时包内不含更新器，运行期回落 Updater.UpdaterPath 或调度态（UpdaterProvisioner 探查不到内嵌二进制） -->
+    <UpdaterArtifactsDir Condition="'$(UpdaterArtifactsDir)' == ''">$(MSBuildThisFileDirectory)..\..\artifacts\updater</UpdaterArtifactsDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(UpdaterArtifactsDir)\**\AtomUpdate.Updater*"
+          Exclude="$(UpdaterArtifactsDir)\**\*.pdb"
+          Pack="true"
+          PackagePath="runtimes"
+          Visible="false"
+          Condition="Exists('$(UpdaterArtifactsDir)')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AtomUpdate.Abstractions\AtomUpdate.Abstractions.csproj" />
+    <ProjectReference Include="..\AtomUpdate.Core\AtomUpdate.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+  </ItemGroup>
+
+</Project>

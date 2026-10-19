@@ -1,0 +1,935 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   AtomUpdate 管理后台样式表
+   ── 主题基准：黑/白中性后台——浅灰白底、黑色主操作、胶囊按钮与灰底胶囊标签、
+      细线分隔、大留白、无阴影无渐变。
+   ── 组件库为 AtomBlazor（shadcn 式 Tailwind v4 组件，NuGet 包引用）：
+      调色板令牌由 theme.css 提供（--background/--primary/--sidebar 等），
+      库的 atomblazorui.css 只消费这些令牌；尺寸与密度由本文件对齐上述基准。
+   ── 关键机制：atomblazorui.css 的规则全部编译进 @layer（properties/theme/base/
+      components/atom/utilities），而未分层（plain）规则在任何层面前都优先，
+      所以覆盖库样式不需要 !important，也不依赖库的内部层顺序。
+   ── 选择器约定：库的 Tailwind 类带 atom: 前缀（.atom\:inline-flex），类选择器
+      写不了前缀，故用属性子串 [class*="atom:xxx"] 匹配；组件不渲染 data-slot
+      （Field 家族除外），卡片用应用自有类 .au-card，其余用保留下来的 role 钩子，
+      见下方每处注释。
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. 主题变量 ─────────────────────────────────────────────────────── */
+:root {
+    --au-ink: #000000;
+    --au-ink-soft: #1f1f1f;
+
+    --au-text: rgba(0, 0, 0, 0.88);
+    --au-text-secondary: rgba(0, 0, 0, 0.65);
+    --au-text-tertiary: rgba(0, 0, 0, 0.45);
+    --au-text-disabled: rgba(0, 0, 0, 0.25);
+
+    --au-bg: #ffffff;
+    --au-bg-layout: #f7f7f7;
+    --au-bg-soft: #fafafa;
+    --au-bg-hover: rgba(0, 0, 0, 0.04);
+    --au-bg-chip: rgba(0, 0, 0, 0.05);
+
+    --au-border: #e5e5e5;
+    --au-border-hairline: #f0f0f0;
+
+    --au-radius-pill: 999px;
+    --au-radius-card: 12px;
+    --au-radius-control: 8px;
+    --au-radius-sm: 6px;
+
+    /* 尺寸：顶栏 56，内容左右 32（窄屏 20），卡片间距 16。
+       Sider 宽度不在此处——由 theme.css 的 --sidebar-width* 决定（库直接消费）。 */
+    --au-header-h: 56px;
+    --au-gutter: 16px;
+    --au-inline: 32px;
+    --au-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+        Arial, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+@media (max-width: 1200px) {
+    :root {
+        --au-inline: 20px;
+    }
+}
+
+/* ── 2. 全局基础 ─────────────────────────────────────────────────────── */
+body {
+    margin: 0;
+    background: var(--au-bg);
+    color: var(--au-text);
+    font-family: var(--au-font);
+    font-size: 14px;
+    font-variant: tabular-nums;
+    line-height: 1.6;
+}
+
+h1:focus {
+    outline: none;
+}
+
+/* 只作用于普通文本链接。库的 Button（带 Href 时）渲染成类名含 atom:inline-flex 的 a，
+   若此处不排除它，无层的 a{color} 会赢过 utilities 层内的 text-primary-foreground，
+   黑底胶囊按钮的字就被染成黑字（404 页"返回首页"）。 */
+a:not([class*="atom:inline-flex"]) {
+    color: var(--au-ink);
+    text-decoration: none;
+}
+
+    a:not([class*="atom:inline-flex"]):hover {
+        color: var(--au-ink-soft);
+    }
+
+/* ── 3. AtomBlazor 组件对齐基准（圆角 / 描边 / 密度） ───────────────── */
+/* 按钮：胶囊 + 32 高（库默认 h-10 / rounded-md）。
+   钩子是 Button 的基类组合 :is(button,a)[class*="atom:inline-flex"][class*="atom:rounded-md"]
+   （Tailwind v4 前缀类无法写类选择器，只能属性子串匹配）；
+   Select 触发器（role=combobox，flex 非 inline-flex）、Sidebar 折叠按钮
+   （flex h-7 w-7）、下拉项（div rounded-sm）都不会命中。
+   外面套 :where() 把这条基础规则的 specificity 归零，业务侧任何单类覆盖
+   （.au-btn-block / .au-row-actions 里的文字链）都能自然盖过它。 */
+:where(:is(button, a)[class*="atom:inline-flex"][class*="atom:rounded-md"]) {
+    height: 32px;
+    padding-inline: 16px;
+    border-radius: var(--au-radius-pill);
+    font-size: 14px;
+    box-shadow: none;
+}
+
+/* 控件密度：库的 Input / NumericInput 默认 h-10（40px）+ text-base（16px），
+   与 32px 胶囊按钮、32px Select 触发器不在一个基准上，统一压回 32px + 14px。
+   Textarea 是自动长高控件（field-sizing-content + min-h-16），不在此列；
+   登录页另有 .au-login-card form > div input 的 42px 规则（特异性更高且后定义）。 */
+input[class*="atom:h-10"] {
+    height: 32px;
+    padding-block: 0;
+    font-size: 14px;
+}
+
+/* 控件圆角 = 8px：库写的是 rounded-md，值由 theme.css 的 --radius 派生
+   （--radius × 0.8 = 0.5rem），与 --au-radius-control 同值，故无需覆盖；
+   这里只把 Select 触发器降到 32 高，与 Input / NumericInput 和按钮对齐。
+   钩子是 SelectTrigger 基元渲染的 role=combobox（全库仅该组件带此 role）。 */
+button[role=combobox] {
+    height: 32px;
+    padding-block: 0;
+    font-size: 14px;
+}
+
+/* 卡片：白底 + 1px 细线 + 12 圆角，无阴影；内边距 20（库默认 p-6 = 24px）。
+   Atom 的 Card 家族不渲染 data-slot，钩子用应用自有类 .au-card，由
+   <Card Class="au-card"> 打入；Card 根自身不带内边距，p-6 落在
+   CardHeader/CardContent/CardFooter 上，故按直接子元素统一收到 20，
+   并保留库的 pt-0 语义（非首子元素不再叠一层顶上距）。
+   404 页的 .au-state-block 也是卡的直接子元素，其自身 padding 在后文定义、
+   特异性相同但源顺序更后，自然盖过这里的 20px。 */
+.au-card {
+    border: 1px solid var(--au-border-hairline);
+    border-radius: var(--au-radius-card);
+    background: var(--au-bg);
+    box-shadow: none;
+}
+
+.au-card > * {
+    padding: 20px;
+}
+
+.au-card > * + * {
+    padding-top: 0;
+}
+
+/* 卡片标题（CardTitle 默认渲染 h3，亦可经 As 改标签） */
+.au-card :is(h2, h3) {
+    color: var(--au-text);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+/* 表格：表头浅灰小字、行细线、悬停浅灰。
+   钩子是 TableHeaderCell / TableCell 基元渲染的 role（Atom 保留 shadcn 的
+   role=columnheader / role=cell；DataTable 的选择列另用 role=gridcell）。 */
+th[role=columnheader] {
+    height: 36px;
+    padding-inline: 20px;
+    background: var(--au-bg-soft);
+    border-bottom: 1px solid var(--au-border-hairline);
+    color: var(--au-text-tertiary);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+td[role=cell], td[role=gridcell] {
+    padding-inline: 20px;
+    border-bottom: 1px solid var(--au-border-hairline);
+    color: var(--au-text);
+}
+
+tbody tr:hover > td {
+    background: var(--au-bg-soft);
+}
+
+/* 表格外壳：库写的是 rounded-md（8px）+ border，细线化即可。
+   Atom 的表格外壳（div.atom:rounded-md.atom:border）不带任何数据属性，
+   用 :has(> table[role=table]) 认领这层 div——Table 基元恒定渲染 role=table。 */
+:has(> table[role=table]) {
+    border-color: var(--au-border-hairline);
+}
+
+/* 表单域：label 用正文色 + 6px 间距（库默认 text-sm font-medium / gap-2）。
+   Atom 的 Field / FieldLabel 仍渲染 data-slot=field / data-slot=field-label，钩子保留。 */
+[data-slot=field] {
+    gap: 6px;
+}
+
+[data-slot=field-label] {
+    color: var(--au-text);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* 弹层：下拉 / 选择列表 / 弹窗统一 12 圆角（与卡片一致）。
+   钩子是基元渲染的 role：DropdownMenuContent → role=menu；
+   SelectContent 的门户内层 div → role=listbox（另带 data-select-content）；
+   DialogContent → role=dialog。 */
+:is([role=menu], [role=listbox]) {
+    border-radius: var(--au-radius-card);
+}
+
+[role=dialog] {
+    gap: var(--au-gutter);
+    padding: 24px;
+    border-radius: var(--au-radius-card);
+    border-color: var(--au-border-hairline);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+}
+
+/* 空态：Atom 的 Empty 无边框盒（旧库的 min-h-[400px] 盒式空态已不存在），
+   标题/描述由参数给出，此处只把文字统一成三级灰；
+   钩子是应用自有类 .au-empty（<Empty Class="au-empty"> 打入）。
+   DataTable 自带空态走 EmptyTemplate 默认分支，不带该类，用库默认色。 */
+.au-empty {
+    color: var(--au-text-tertiary);
+}
+
+/* ── 4. 外壳：浅色 Sider + 顶栏 + 内容 + 页脚 ───────────────────────── */
+/* Sider 的宽度 / 背景 / 右边框来自 theme.css 的 --sidebar-width*、--sidebar、
+   --sidebar-border，折叠由库自己按 data-state / data-collapsible 切换，
+   这里只补品牌区与菜单的悬停、选中态。 */
+.au-sider {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+}
+
+.au-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: var(--au-header-h);
+    padding: 0 16px;
+    overflow: hidden;
+    flex: 0 0 auto;
+}
+
+.au-brand-mark {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--au-ink);
+    color: #fff;
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.au-brand-text {
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--au-ink);
+}
+
+/* 图标态：库只隐藏它自己的子元素，品牌文字是业务节点，需自行收起并居中 Logo */
+.au-sider[data-collapsible=icon] .au-brand {
+    justify-content: center;
+    padding: 0;
+}
+
+.au-sider[data-collapsible=icon] .au-brand-text {
+    display: none;
+}
+
+/* 菜单：选中 = 浅灰底 + 黑字加粗；悬停 = 更浅的灰底 */
+.au-sider :is(a, button)[data-active=true] {
+    background: var(--au-bg-chip);
+    color: var(--au-ink);
+    font-weight: 600;
+}
+
+.au-sider a:hover {
+    background: var(--au-bg-hover);
+    color: var(--au-ink);
+}
+
+.au-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: var(--au-header-h);
+    line-height: var(--au-header-h);
+    background: var(--au-bg);
+    padding-inline: var(--au-inline);
+    border-bottom: 1px solid var(--au-border-hairline);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.au-trigger {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: 16px;
+    color: var(--au-text-secondary);
+    line-height: 1;
+}
+
+    .au-trigger:hover {
+        color: var(--au-ink);
+    }
+
+.au-header-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--au-text);
+}
+
+.au-spacer {
+    flex: 1 1 auto;
+}
+
+.au-header-action {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 8px;
+    height: var(--au-header-h);
+    cursor: pointer;
+    color: var(--au-text-secondary);
+    line-height: 1;
+}
+
+    .au-header-action:hover {
+        background: var(--au-bg-hover);
+        color: var(--au-ink);
+    }
+
+/* 用户下拉触发器：库只给到 rounded-md，补内边距与悬停底 */
+.au-user {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    padding-inline: 12px;
+    border-radius: var(--au-radius-pill);
+    cursor: pointer;
+    color: var(--au-text);
+}
+
+    .au-user:hover {
+        background: var(--au-bg-hover);
+        color: var(--au-ink);
+    }
+
+.au-content {
+    /* 留白由 PageContainer 负责 */
+    padding: 0;
+    flex: 1 1 auto;
+    background: var(--au-bg);
+}
+
+.au-footer {
+    padding: 24px var(--au-inline);
+    text-align: center;
+    color: var(--au-text-tertiary);
+    font-size: 13px;
+    background: transparent;
+    line-height: 1.8;
+}
+
+/* 外壳高度链补齐：库的 SidebarProvider 根只带 min-h-screen（高度 auto），
+   SidebarInset 的 main 虽有 h-full + flex-col，但百分比高度对 auto 高度的
+   容器不可解析、也不会随 aside 的 100vh 拉伸（Edge/Chromium 实测 main
+   仅内容高，页脚悬在内容后面而非浏览器底部）。
+   给 main 补最小视口高：内容高于视口时 min-height 不截断、自然增高，
+   页脚回到内容流末尾；内容不多时主列撑满视口，页脚贴底。
+   dvh 为动态视口（移动端工具栏伸缩），100vh 兜底。
+   类经 <SidebarInset Class="au-main"> 打入，见 MainLayout。 */
+.au-main {
+    min-height: 100vh;
+    min-height: 100dvh;
+}
+
+/* ── 5. PageContainer：无底色排版页头（面包屑 + 标题 + 描述 + 操作区） ── */
+.au-page-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.au-page-header {
+    padding: 24px var(--au-inline) 0;
+}
+
+.au-breadcrumb {
+    font-size: 13px;
+    color: var(--au-text-tertiary);
+    margin-bottom: 10px;
+}
+
+    .au-breadcrumb a {
+        color: var(--au-text-tertiary);
+    }
+
+        .au-breadcrumb a:hover {
+            color: var(--au-ink);
+        }
+
+    .au-breadcrumb .au-crumb-current {
+        color: var(--au-text-secondary);
+    }
+
+.au-page-header-main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 12px 24px;
+}
+
+.au-page-header-heading {
+    flex: 1 1 320px;
+    min-width: 0;
+}
+
+.au-page-title {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--au-ink);
+    margin: 0;
+    line-height: 1.35;
+}
+
+.au-page-desc {
+    margin: 6px 0 0;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--au-text-tertiary);
+}
+
+.au-page-header-extra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.au-page-body {
+    padding: var(--au-gutter) var(--au-inline) 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--au-gutter);
+}
+
+/* ── 6. 查询区 / 工具条 / 行操作 / 表单网格 / 分页摘要 ───────────────── */
+/* flex 而非 grid：检索条件与查询/重置按钮同排，按钮不被迫换行 */
+.au-query {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px var(--au-gutter);
+    margin-bottom: 16px;
+}
+
+/* basis 0 + min-width：等分且按 min-width 参与换行判定，按钮组不会被迫另起一行 */
+.au-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 0;
+    min-width: 160px;
+}
+
+.au-field-label {
+    font-size: 13px;
+    color: var(--au-text-tertiary);
+}
+
+/* 控件填满字段宽：Select 触发器已是 w-full，库把触发器包在 div[class*=atom:relative] 里，
+   需要连同这层壳一起撑开（Input 系控件本身 w-full，无需额外规则） */
+.au-field > [class*="atom:relative"] {
+    width: 100%;
+}
+
+/* 只读作用域值：与控件同尺寸，但不接受输入 */
+.au-field-value {
+    display: flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--au-border);
+    border-radius: var(--au-radius-control);
+    background: var(--au-bg-soft);
+    color: var(--au-text);
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 按钮容器同时带 .au-field（column 布局），这里必须显式改回 row 并禁止拉伸 */
+.au-field-actions {
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.au-divider-query {
+    margin: 0 -20px 16px;
+    border-color: var(--au-border-hairline);
+}
+
+.au-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+    .au-toolbar:last-child {
+        margin-bottom: 0;
+    }
+
+.au-meta {
+    font-size: 13px;
+    color: var(--au-text-tertiary);
+}
+
+/* 行内操作：文字链（基准的次要操作是纯文字，无按钮底） */
+.au-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+    .au-row-actions :is(button, a) {
+        height: auto;
+        padding: 0;
+        line-height: 1.5;
+        color: var(--au-text-secondary);
+        font-weight: 400;
+    }
+
+        .au-row-actions :is(button, a):hover {
+            color: var(--au-ink);
+        }
+
+/* 撤回 / 危险文字链。上方 .au-row-actions :is(button,a) 的 specificity 是 (0,1,1)，
+   单类选择器压不住，故并列写一条带上下文的。 */
+.au-link-danger,
+.au-row-actions :is(button, a).au-link-danger {
+    color: var(--alert-danger, #d4380d);
+}
+
+    .au-link-danger:hover,
+    .au-row-actions :is(button, a).au-link-danger:hover {
+        color: var(--alert-danger, #d4380d);
+        opacity: 0.8;
+    }
+
+/* 按钮行（分页、对话框外的操作条） */
+.au-btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 整行宽主操作（登录）：高度回到库默认的 40 */
+.au-btn-block {
+    width: 100%;
+    height: 40px;
+    font-size: 15px;
+}
+/* 徽标行：包架构 / 通道这类多枚胶囊 */
+.au-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+/* 复选组：库的 Checkbox 是 button[role=checkbox]（无子内容），文字由 label for 承载 */
+.au-check-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px 16px;
+}
+
+.au-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 28px;
+    cursor: pointer;
+}
+
+    .au-check label {
+        font-size: 14px;
+        color: var(--au-text);
+        cursor: pointer;
+    }
+
+/* 策略弹窗的分组小标题 */
+.au-policy-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.au-policy-group-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--au-text-secondary);
+}
+
+/* 弹窗宽度：默认 480，策略弹窗放两列 */
+.au-dialog {
+    width: min(92vw, 480px);
+    max-width: min(92vw, 480px);
+}
+
+.au-dialog-wide {
+    width: min(94vw, 720px);
+    max-width: min(94vw, 720px);
+}
+
+/* 弹层表单呼吸感：Field 根是 div[data-slot=field]（flex 纵向 + gap-2），
+   表单的直接 div 子元素（即各 Field）之间无纵向间距，这里补 20px */
+.au-dialog form > div + div {
+    margin-top: 20px;
+}
+
+.au-dialog form > div {
+    gap: 8px;
+}
+
+.au-dialog .au-field-value {
+    padding: 6px 0;
+}
+
+.au-empty-icon {
+    color: var(--au-text-tertiary);
+}
+
+.au-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 32px 0;
+    color: var(--au-text-tertiary);
+    font-size: 13px;
+}
+
+.au-pager {
+    margin: 16px 0 0;
+}
+
+/* 详情/表单页：字段清单与日志原文块 */
+.au-detail-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 14px;
+}
+
+    .au-detail-list b {
+        color: var(--au-text-secondary);
+        font-weight: 500;
+        margin-right: 6px;
+    }
+
+.au-pre {
+    margin: 8px 0 0;
+    padding: 12px;
+    background: var(--au-bg-layout);
+    border: 1px solid var(--au-border-hairline);
+    border-radius: var(--au-radius-control);
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+.au-form-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+    /* 业务侧不再包 Form 壳，字段直接是 [data-slot=field]，按可用宽度等分 */
+    .au-form-grid > [data-slot=field] {
+        flex: 1 1 200px;
+    }
+
+.au-form-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 更新日志四段：两列网格，窄屏自动回落单列 */
+.au-notes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+}
+
+/* 长内容（URL/长词条）不得撑破栅格列 */
+.au-notes-grid > [data-slot=field] {
+    min-width: 0;
+}
+
+.au-notes-grid .au-field-label {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* 表单区块统一说明行（如更新内容"每行一条"） */
+.au-form-hint {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--au-text-tertiary);
+}
+
+.au-notes-section + .au-notes-section {
+    margin-top: 16px;
+}
+
+    .au-notes-section > b {
+        color: var(--au-text-secondary);
+        font-weight: 500;
+        font-size: 14px;
+    }
+
+.au-notes-list {
+    margin: 6px 0 0;
+    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+/* ── 7. 统计卡片：细线白卡 + 大号数值 ───────────────────────────────── */
+.au-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--au-gutter);
+}
+
+.au-stat {
+    background: var(--au-bg);
+    border: 1px solid var(--au-border-hairline);
+    border-radius: var(--au-radius-card);
+    padding: 20px;
+}
+
+.au-stat-title {
+    color: var(--au-text-tertiary);
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.au-stat-value {
+    margin-top: 6px;
+    color: var(--au-ink);
+    font-size: 30px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    font-variant: tabular-nums;
+    line-height: 1.25;
+}
+
+/* ── 8. 状态 / 异常页 ───────────────────────────────────────────────── */
+.au-state-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 56px 24px;
+    text-align: center;
+}
+
+.au-state-code {
+    font-size: 64px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--au-ink);
+}
+
+.au-state-title {
+    font-size: 20px;
+    color: var(--au-text);
+}
+
+.au-state-desc {
+    margin: 0;
+    color: var(--au-text-tertiary);
+}
+
+/* ── 9. 登录页：浅底 + 白卡 + 黑色主操作 ───────────────────────────── */
+.au-login {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background: var(--au-bg-layout);
+}
+
+.au-login-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 48px 0 12px;
+    justify-content: center;
+}
+
+.au-login-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: var(--au-ink);
+    color: #fff;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.au-login-title {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--au-ink);
+    line-height: 1.2;
+}
+
+.au-login-desc {
+    text-align: center;
+    color: var(--au-text-tertiary);
+    font-size: 14px;
+    margin: 0 0 32px;
+}
+
+.au-login-main {
+    flex: 1 1 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+}
+
+.au-login-card {
+    width: 100%;
+    max-width: 400px;
+    background: var(--au-bg);
+    border: 1px solid var(--au-border-hairline);
+    border-radius: var(--au-radius-card);
+    padding: 44px 40px;
+}
+
+.au-login-tabs {
+    text-align: center;
+    margin-bottom: 32px;
+    color: var(--au-ink);
+    font-size: 17px;
+    font-weight: 600;
+}
+
+/* 登录表单呼吸感：Field 根是 div[data-slot=field]（flex 纵向），Input 默认 h-10，
+   已被上方密度规则压到 32px（列表页密度）；登录页需要 42px 的舒展触感，按真实结构覆盖。 */
+.au-login-card form > div + div {
+    margin-top: 24px;
+}
+
+.au-login-card form > div {
+    gap: 10px;
+}
+
+.au-login-card form > div input {
+    height: 42px;
+    padding: 0 14px;
+    font-size: 15px;
+}
+
+.au-login-card form label {
+    font-size: 14px;
+}
+
+.au-login-card .au-btn-block {
+    margin-top: 32px;
+    height: 46px;
+    font-size: 15px;
+}
+
+.au-login-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 4px 0 16px;
+}
+
+.au-login-footer {
+    text-align: center;
+    color: var(--au-text-tertiary);
+    font-size: 13px;
+    padding: 24px 0 32px;
+}
+
+/* ── 10. Blazor 表单校验与错误边界（模板遗留，行为不变） ────────────── */
+.valid.modified:not([type=checkbox]) {
+    outline: 1px solid #52c41a;
+}
+
+.invalid {
+    outline: 1px solid #ff4d4f;
+}
+
+.validation-message {
+    color: #ff4d4f;
+}
+
+.blazor-error-boundary {
+    background: var(--au-bg-soft);
+    border: 1px solid var(--au-border);
+    border-radius: var(--au-radius-control);
+    padding: 12px 16px;
+    color: var(--au-text);
+    margin-bottom: 16px;
+}

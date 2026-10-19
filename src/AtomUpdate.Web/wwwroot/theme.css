@@ -1,0 +1,81 @@
+/* AtomUpdate 管理后台主题令牌（AtomBlazor / shadcn 变量体系）。
+   AtomBlazor 的 atomblazor.css 只消费这些令牌、不定义它们，所以本文件必须晚于
+   _content/AtomBlazor/css/themes.css 加载，见 Web/Components/App.razor。
+   基线沿用既有黑/白中性主题：纯黑白主色、细线边框、灰底次要面。 */
+
+:root {
+  /* 核心面 */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.163 0 0);
+
+  /* 语义色：主色取纯黑，与既有 --au-primary:#000 对齐 */
+  --primary: oklch(0 0 0);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(1 0 0);
+
+  /* 中性层级 */
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+
+  /* 控件与描边 */
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0 0 0);
+
+  /* 容器 */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.163 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.163 0 0);
+
+  /* 选中文本 */
+  --selection: oklch(0.163 0 0);
+  --selection-foreground: oklch(1 0 0);
+
+  /* 侧边栏：浅色 Sider（与既有基线一致，不是深色导航）；
+     宽度令牌由库的 aside 直接消费（w-[var(--sidebar-width)] /
+     data-[state=collapsed]:w-[var(--sidebar-width-icon)]），
+     所以折叠尺寸只能改这里，改 app.css 的 --au-sider-w* 无效。 */
+  --sidebar-width: 232px;
+  --sidebar-width-icon: 48px;
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.163 0 0);
+  --sidebar-primary: oklch(0 0 0);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.965 0 0);
+  --sidebar-ring: oklch(0 0 0);
+
+  /* 字体：跟随系统栈，不引 webfont（离线可用 + 与既有 app.css 一致） */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-heading: var(--font-sans);
+  --font-serif: Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  /* 圆角刻度：AtomBlazor 的 Tailwind v4 工具类按 --radius 乘法派生——
+       rounded-md = --radius × 0.8（控件：Input/Select/Textarea/NumericInput），
+       rounded-lg = --radius（卡片/弹窗/Toast，app.css 另按 12px 覆盖）。
+       取 0.625rem 使 rounded-md 恰为 8px，对齐 app.css 的 --au-radius-control；
+       Card/Dialog/浮层的 12px 由 app.css 的 .au-card / [role=dialog] / [role=menu] 显式给出。 */
+  --radius: 0.625rem;
+}
+
+/* 库的组件大量写裸 atom:border（Card / Badge / 表格外壳 / 浮层……）而不带颜色类，
+   Tailwind v4 的 border 工具类只设宽度与线型，颜色回落 currentColor（≈ 正文黑），
+   描边会深得发腻。按 shadcn 惯例在 base 层给出默认边框色；utilities 层里的
+   atom:border-input / atom:border-sidebar-border 等仍能正常覆盖它。
+   注：本文件在 atom.css 之后加载，@layer base 并入同一层，同特异性靠源顺序胜出。 */
+@layer base {
+  *,
+  ::before,
+  ::after,
+  ::backdrop {
+    border-color: var(--border);
+  }
+}
