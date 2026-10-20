@@ -5,6 +5,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- NU5104：稳定包不得依赖预释版。微软系依赖刻意钉在 dnceng rtm 构建
+         （11.0.0-rtm.26480.113，nuget.org 尚无稳定 11.0.0），.NET 11 GA 且版本线
+         切到稳定号后可移除此抑制；消费者还原需在 nuget.config 配 dotnet11 源。 -->
+    <NoWarn>$(NoWarn);NU5104</NoWarn>
     <Version>1.0.0</Version>
     <Authors>AtomUpdate</Authors>
     <Product>AtomUpdate</Product>
