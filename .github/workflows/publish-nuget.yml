@@ -64,11 +64,13 @@ jobs:
         shell: bash  # Windows runner 默认 pwsh，bash 数组/条件语法需显式指定
         run: |
           args=(-p:PublishAot=true)
-          # x64 runner 交叉编译 linux-arm64：ILCompiler 无条件向编译器传 --target=<triple>（clang 语法），
-          # 须用 clang 编译 + lld 链接（LLVM 交叉零配置，bfd 会撞宿主链接器），
-          # gcc-aarch64-linux-gnu 提供目标 CRT（sysroot=/usr/aarch64-linux-gnu），llvm 提供 llvm-objcopy
+          # x64 runner 交叉编译 linux-arm64：ILCompiler 无条件向编译器传 --target=<triple>（clang 语法）。
+          # clang 默认即为编译器，GCC 交叉探测在 Ubuntu 上可自动解析 crt/libgcc（勿传 SysRoot——
+          # Ubuntu 交叉工具链的 crtbeginS.o/libgcc 在 sysroot 之外）；链接换 lld（架构无关，
+          # 默认 bfd 是宿主 x64 链接器、拒收 aarch64 目标）；gcc-aarch64-linux-gnu 提供目标 libc，
+          # llvm 提供 llvm-objcopy（StripSymbols 用）
           if [ "${{ matrix.rid }}" = "linux-arm64" ]; then
-            args+=(-p:CppCompilerAndLinker=clang -p:LinkerFlavor=lld -p:SysRoot=/usr/aarch64-linux-gnu)
+            args+=(-p:LinkerFlavor=lld)
           fi
           dotnet publish src/AtomUpdate.Updater/AtomUpdate.Updater.csproj -c Release -r ${{ matrix.rid }} "${args[@]}" -o artifacts/updater/${{ matrix.rid }}/native
       - uses: actions/upload-artifact@v4
