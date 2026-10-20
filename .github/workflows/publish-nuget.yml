@@ -209,12 +209,20 @@ jobs:
       - name: 推送到 nuget.org
         env:
           NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          NUGET_SOURCE: https://api.nuget.org/v3/index.json
+        # 按精确文件名推送：glob（AtomUpdate.*.nupkg）会把 Core/Abstractions 一并
+        # 匹配进来，多行路径传入 dotnet nuget push 即报错（v1.0.1 首发实测）
         run: |
+          v="${GITHUB_REF_NAME#v}"
           for pkg in AtomUpdate.Core AtomUpdate.Abstractions AtomUpdate; do
-            f="$(ls packages/${pkg}.*.nupkg)"
+            f="packages/${pkg}.${v}.nupkg"
+            if [ ! -f "$f" ]; then
+              echo "::error::包不存在: $f（Pack 步骤产物缺失？）"
+              exit 1
+            fi
             echo ">> push $f"
             dotnet nuget push "$f" \
-              --source https://api.nuget.org/v3/index.json \
+              --source "$NUGET_SOURCE" \
               --api-key "$NUGET_API_KEY" \
               --skip-duplicate
           done
