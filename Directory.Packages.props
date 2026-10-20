@@ -40,12 +40,14 @@
     <!-- Web 管理后台 UI：AtomBlazor（NuGet 正式包，net11.0-only，替代原 NeoUI.Blazor）。
          主包传递引入 AtomBlazor.Primitives / AtomBlazor.Icons.Lucide（版本随主包联动）
          与 Markdig / HtmlSanitizer / Ical.Net / TailwindMerge.NET，消费侧只装主包。
-         库源码在 D:/Source/AtomBlazorUI（本地目录、非 git 仓库），发布线 nuget.org
-         （nuget.config 的 * 兜底模式已覆盖，无需额外源映射）。
+         库源码在 D:/Source/AtomBlazorUI（git 仓库 github.com/Atomlust/AtomBlazor），
+         发布线 nuget.org（nuget.config 的 * 兜底模式已覆盖，无需额外源映射）。
          曾用本地源码 ProjectReference，因库重构改名（包 ID AtomBlazor、命名空间
          根 AtomBlazor）且发布线已稳定，改回 NuGet 消费；WASM full 裁剪下重依赖
-         会被裁掉，见 Web.Client csproj 注释与 TrimRoots.xml。 -->
-    <PackageVersion Include="AtomBlazor" Version="0.3.0" />
+         会被裁掉，见 Web.Client csproj 注释与 TrimRoots.xml。
+         0.4.0：库侧把JS interop 载荷从匿名类型全量改为具名 record（13 处调用点），
+         根治 WASM 裁剪下的 ConstructorContainsNullParameterNames（浮层打不开）。 -->
+    <PackageVersion Include="AtomBlazor" Version="0.4.0" />
     <!-- Packager（Avalonia） -->
     <PackageVersion Include="Avalonia" Version="12.1.4" />
     <PackageVersion Include="Avalonia.Desktop" Version="12.1.4" />

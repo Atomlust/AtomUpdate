@@ -27,20 +27,25 @@
   Markdown/Calendar/HTML 净化等组件一并变成根，其静态引用把库依赖的
   Markdig/HtmlSanitizer/Ical.Net/AngleSharp 全部拖回可达图
   （实测 52 个 wasm/raw 8.5MB -> 67 个/15.5MB，比不裁还大）。故只保留
-  上述 4 个载荷类型。AtomUpdate.Core 无任何包引用，整体保留是廉价安全的。
+  上述载荷类型。AtomUpdate.Core 无任何包引用，整体保留是廉价安全的。
 
-  背景 3（Primitives 整体保留）：FloatingPortal 打开浮层时用**匿名类型**组装
-  options（new { placement, offset, ... / new { kind, contentId, ... }），
-  经 InvokeVoidAsync(identifier, args) 传给 JS —— args 元素静态类型是 object，
-  STJ 走运行时多态解析、为匿名类型构建 TypeInfo 时需要构造函数参数名，
-  full 裁剪下该元数据已丢失，实测抛 NotSupportedException:
-  ConstructorContainsNullParameterNames（现象：点开 Select/Dropdown 等浮层
-  报「FloatingPortal 'xxx' 打开失败」）。匿名类型无法按名字精确保留（名字含
-  泛型 arity 且不稳定），故整体保留 AtomBlazor.Primitives —— 该程序集只依赖
-  Microsoft.AspNetCore.Components.Web，不牵连 Markdig/HtmlSanitizer/Ical.Net，
-  保留代价仅为本程序集自身体积。
-  根治路径在库侧：把 FloatingPortal 的 options 改为具名 record（同 4 个 JsConfig
-  的做法）并发布新包，届时本条可改为按类型精确保留。
+  背景 3（Primitives 的 JS interop 载荷精确保留，0.4.0 起）：
+  FloatingPortal 等浮层打开时要把配置传给 JS。这些载荷原先是**匿名类型**
+  （new { placement, offset, ... }），经 InvokeVoidAsync(identifier, args) 传递，
+  args 元素静态类型是 object，STJ 走运行时多态解析、为匿名类型构建 TypeInfo
+  时需要构造函数参数名，full 裁剪下该元数据已丢失，实测抛 NotSupportedException:
+  ConstructorContainsNullParameterNames（现象：点开 Select/Dropdown 等浮层报
+  「FloatingPortal 'xxx' 打开失败」）。
+
+  0.3.0 时本文件的临时对策是整体保留 AtomBlazor.Primitives。**0.4.0 起库侧
+  已根治**：把全部 13 处匿名类型载荷改为具名 record（默认构造 + init 小写属性，
+  JSON 键名与改造前逐字节一致），STJ 改走属性序列化路径，与构造函数参数名彻底
+  无关；匿名类型无法按名精确保留的问题也一并消失（名字含泛型 arity 且随编译重编号）。
+
+  这些 record 是 internal 可见性，但根描述符按 fullname 匹配，与可见性无关，
+  故下列条目能精确命中。类型名随库版本变动，改库升级时须同步核对
+  （库源码 D:/Source/AtomBlazorUI 的 Internal/InteropPayloads.cs 与
+  Internal/ComponentInteropPayloads.cs 是权威清单）。
 
   已实测否决的方案：TrimMode=partial——不删未引用程序集，AngleSharp/Markdig/
   HtmlSanitizer/FluentValidation/Ical.Net 全部回来（raw 19MB+），程序集级
@@ -64,7 +69,23 @@
   <type fullname="AtomBlazor.InputFieldJsConfig" preserve="all" />
   <type fullname="AtomBlazor.NumericInputJsConfig" preserve="all" />
   <type fullname="AtomBlazor.TextareaJsConfig" preserve="all" />
-  <!-- 浮层原语（Select/Dropdown/Popover/Dialog 等）：其 options 仍为匿名类型，
-       匿名类型无法按名精确保留，故整体保留；该包只依赖 Components.Web，无重依赖牵连 -->
-  <assembly fullname="AtomBlazor.Primitives" preserve="all" />
+  <!-- 浮层原语的 JS interop 载荷（0.4.0 起为具名 record，库侧已根治匿名类型问题） -->
+  <type fullname="AtomBlazor.Primitives.FloatingOpenJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.Primitives.FloatingDismissJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.Primitives.FloatingScrollToCurrentJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.Primitives.FloatingKeyboardJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.Primitives.FloatingCloseJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.Primitives.FloatingKeyboardReleaseJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.Primitives.FloatingNotifyClosedJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.Primitives.SliderJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.Primitives.MenuKeyboardJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.Primitives.ScrollAreaJsConfig" preserve="all" />
+  <!-- 主包组件的 JS interop 载荷（对应组件未被引用时连同组件一并被裁，无额外体积） -->
+  <type fullname="AtomBlazor.CarouselJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.CompositionGuardJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.DashboardGridJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.DrawerSnapsJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.HeightAnimationJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.MotionJsConfig" preserve="all" />
+  <type fullname="AtomBlazor.SelectionIndicatorJsConfig" preserve="all" />
 </linker>
