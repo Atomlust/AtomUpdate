@@ -248,6 +248,8 @@ jobs:
           make_new_body: false
 
       - name: 追加发布记录 docs/RELEASES.md 并回提
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}  # 仓库默认分支动态取（本仓为 master，勿写死 main）
         run: |
           mkdir -p docs
           if [ ! -f docs/RELEASES.md ]; then
@@ -274,9 +276,9 @@ jobs:
           mv docs/RELEASES.md.new docs/RELEASES.md
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout main 2>/dev/null || git checkout -B main "origin/main"
-          git pull --ff-only origin main
+          git checkout "$DEFAULT_BRANCH" 2>/dev/null || git checkout -B "$DEFAULT_BRANCH" "origin/$DEFAULT_BRANCH"
+          git pull --ff-only origin "$DEFAULT_BRANCH"
           git add docs/RELEASES.md
           git diff --cached --quiet && { echo '无变化，跳过提交'; exit 0; }
           git commit -m "发布记录: ${GITHUB_REF_NAME}"
-          git push origin main
+          git push origin "$DEFAULT_BRANCH"
