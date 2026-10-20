@@ -153,6 +153,31 @@ jobs:
           done
           ls -R updater | head -40
 
+      # 标准消费端不需要单独下载更新器：AtomUpdate 包内嵌 runtimes/{rid}/native/，
+      # SDK 运行期由 UpdaterProvisioner 自动释放。本步骤只服务"自定义安装流程 / 缓存 / 内网离线"
+      # 这类需要裸二进制的场景。必须按 RID 打包成 zip —— 6 份产物里 4 份同名
+      # AtomUpdate.Updater，作为 Release 附件会互相覆盖。
+      - name: 打包各 RID 更新器（供独立下载）
+        run: |
+          dist="$GITHUB_WORKSPACE/artifacts/updater-dist"
+          mkdir -p "$dist"
+          for rid in win-x64 win-arm64 linux-x64 linux-arm64 osx-x64 osx-arm64; do
+            src="$GITHUB_WORKSPACE/artifacts/updater/$rid/native"
+            # 精确文件名而非 AtomUpdate.Updater* 通配：通配会把 .pdb 一并打进用户下载物
+            case "$rid" in win-*) name="AtomUpdate.Updater.exe";; *) name="AtomUpdate.Updater";; esac
+            if [ ! -f "$src/$name" ]; then
+              echo "::error::缺少更新器二进制: $src/$name"
+              exit 1
+            fi
+            out="$dist/AtomUpdate.Updater.$rid.zip"
+            rm -f "$out"
+            # zip 非 runner 必备依赖，缺失时回退 python3（GitHub runner 自带）
+            (cd "$src" && zip -q "$out" "$name" 2>/dev/null) || \
+              (cd "$src" && python3 -m zipfile -c "$out" "$name")
+            echo ">> $(basename "$out") $(stat -c%s "$out") 字节"
+          done
+          (cd "$dist" && sha256sum *.zip > SHA256SUMS && cat SHA256SUMS)
+
       - name: Pack（AtomUpdate + 依赖包 Core/Abstractions）
         run: |
           mkdir -p packages
@@ -187,7 +212,24 @@ jobs:
             echo ""
             echo "> 注意：依赖 Microsoft.Extensions.* \`11.0.0-rtm.*\`（dnceng 预发布构建，nuget.org 尚无稳定 11.0.0）。还原时需在 nuget.config 加入 dotnet11 源：\`https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet11/nuget/v3/index.json\`（.NET 11 GA 后解除）。"
             echo ""
-            echo "更新器为 6 RID Native AOT 内嵌（runtimes/{rid}/native），运行期无需外部下载。"
+            echo "更新器为 6 RID Native AOT 内嵌（runtimes/{rid}/native），运行期由 SDK 自动释放，**标准接入无需任何额外下载**。"
+            echo ""
+            echo "### 独立获取更新器二进制（可选）"
+            echo ""
+            echo "仅在以下场景需要：自定义安装流程 / CI 缓存 / 内网离线分发。可从本页附件按 RID 下载对应 zip，解压即得可直接执行的 \`AtomUpdate.Updater\`。"
+            echo ""
+            echo "| 文件 | 平台 | 大小 | SHA256 |"
+            echo "| --- | --- | --- | --- |"
+            for rid in win-x64 win-arm64 linux-x64 linux-arm64 osx-x64 osx-arm64; do
+              f="artifacts/updater-dist/AtomUpdate.Updater.$rid.zip"
+              os="${rid%%-*}"
+              [ "$os" = "win" ] && label="Windows" || { [ "$os" = "osx" ] && label="macOS" || label="Linux"; }
+              echo "| \`AtomUpdate.Updater.$rid.zip\` | $label | $(numfmt --to=iec $(stat -c%s "$f")) | $(sha256sum "$f" | cut -d' ' -f1) |"
+            done
+            echo ""
+            echo "校验：\`sha256sum -c SHA256SUMS\`（附件同目录提供）。macOS 首次执行可能需要 Gatekeeper 放行（未做公证的 AOT 二进制）。"
+            echo ""
+            echo "宿主若已引用 \`AtomUpdate\` 包，请勿手工放置此二进制 —— 内嵌版本与 SDK 版本严格一致，放错版本会导致释放回退与自升级错配。"
           } > release-notes.md
           cat release-notes.md
 
@@ -240,11 +282,14 @@ jobs:
           echo "::error::nuget.org 上 30 分钟内未查到 AtomUpdate $v"
           exit 1
 
-      - name: 创建 GitHub Release（附 nupkg）
+      - name: 创建 GitHub Release（附 nupkg 与各 RID 更新器）
         uses: softprops/action-gh-release@v2
         with:
           body_path: release-notes.md
-          files: packages/*.nupkg
+          files: |
+            packages/*.nupkg
+            artifacts/updater-dist/*.zip
+            artifacts/updater-dist/SHA256SUMS
           make_new_body: false
 
       - name: 追加发布记录 docs/RELEASES.md 并回提

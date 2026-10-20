@@ -229,6 +229,7 @@ public class UpdateViewModel : IDisposable
 - 后台轮询默认开启（6 小时 ± 抖动、启动 5 秒后首查、失败指数退避），无需手写定时器；轮询发现更新走 Silent 下载，就绪后 `UpdateReady` 提示
 - `Postpone` 的截止时间与次数持久化，超期/超次自动升级为强制路径；服务端强更（`ForceUpdate=true`）下推迟无效，UI 必须隐藏"稍后"
 - 更新器（AOT 单文件）由 `UpdaterProvisioner` 自动释放到 `{AtomUpdateRoot}/updater/{version}/`（版本化目录 + `current` 指针，避免覆盖运行中的更新器；平台目录见 [10 §平台目录](10-更新器配置参考.md)），宿主无需分发额外文件
+- 仅当需要**裸更新器二进制**时（自定义安装流程、CI 缓存、内网离线分发）才去 GitHub Release 页按 RID 下载 `AtomUpdate.Updater.{rid}.zip`（同页附 `SHA256SUMS` 校验）。已引用 `AtomUpdate` 包的宿主**不要**手工放置该二进制：内嵌版本与 SDK 版本严格一致，错配会导致释放回退与自升级错配
 - 全量配置项见 §3（下载模式、计量网络、限速、校验、安装模式、通知）
 
 ## 8. 场景二：引用 AtomUpdate 的 App（MAUI / 移动端）
