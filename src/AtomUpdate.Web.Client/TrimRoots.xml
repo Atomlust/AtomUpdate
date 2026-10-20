@@ -29,6 +29,19 @@
   （实测 52 个 wasm/raw 8.5MB -> 67 个/15.5MB，比不裁还大）。故只保留
   上述 4 个载荷类型。AtomUpdate.Core 无任何包引用，整体保留是廉价安全的。
 
+  背景 3（Primitives 整体保留）：FloatingPortal 打开浮层时用**匿名类型**组装
+  options（new { placement, offset, ... / new { kind, contentId, ... }），
+  经 InvokeVoidAsync(identifier, args) 传给 JS —— args 元素静态类型是 object，
+  STJ 走运行时多态解析、为匿名类型构建 TypeInfo 时需要构造函数参数名，
+  full 裁剪下该元数据已丢失，实测抛 NotSupportedException:
+  ConstructorContainsNullParameterNames（现象：点开 Select/Dropdown 等浮层
+  报「FloatingPortal 'xxx' 打开失败」）。匿名类型无法按名字精确保留（名字含
+  泛型 arity 且不稳定），故整体保留 AtomBlazor.Primitives —— 该程序集只依赖
+  Microsoft.AspNetCore.Components.Web，不牵连 Markdig/HtmlSanitizer/Ical.Net，
+  保留代价仅为本程序集自身体积。
+  根治路径在库侧：把 FloatingPortal 的 options 改为具名 record（同 4 个 JsConfig
+  的做法）并发布新包，届时本条可改为按类型精确保留。
+
   已实测否决的方案：TrimMode=partial——不删未引用程序集，AngleSharp/Markdig/
   HtmlSanitizer/FluentValidation/Ical.Net 全部回来（raw 19MB+），程序集级
   收益归零，不可用。
@@ -51,4 +64,7 @@
   <type fullname="AtomBlazor.InputFieldJsConfig" preserve="all" />
   <type fullname="AtomBlazor.NumericInputJsConfig" preserve="all" />
   <type fullname="AtomBlazor.TextareaJsConfig" preserve="all" />
+  <!-- 浮层原语（Select/Dropdown/Popover/Dialog 等）：其 options 仍为匿名类型，
+       匿名类型无法按名精确保留，故整体保留；该包只依赖 Components.Web，无重依赖牵连 -->
+  <assembly fullname="AtomBlazor.Primitives" preserve="all" />
 </linker>
