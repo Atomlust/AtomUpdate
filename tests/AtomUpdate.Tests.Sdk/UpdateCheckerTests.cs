@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AtomUpdate.Tests.Sdk;
 
-/// <summary>UpdateChecker 全场景：200/304/错误分支/重试/ETag/策略缓存（04 §3.10，出口条件 W2）。</summary>
+/// <summary>UpdateChecker 全场景：200/304/错误分支/重试/ETag/策略缓存（04 §3.10）。</summary>
 public class UpdateCheckerTests : IDisposable
 {
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "atomupdate-tests", Guid.NewGuid().ToString("N"));

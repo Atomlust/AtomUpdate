@@ -29,7 +29,7 @@
 | AtomUpdate.Abstractions | 接口与模型，供扩展包引用 |
 | AtomUpdate.Core | 跨端契约（DTO/枚举/常量/错误码），SDK 依赖的纯 POCO 契约包 |
 | AtomUpdate.Updater | 更新器，作为内容随包分发（见 §4） |
-| AtomUpdate.UI.Wpf / WinForms / Avalonia / MAUI / Console | **可选** UI 适配包（见 §2.4） |
+| AtomUpdate.UI.Wpf / WinForms / Avalonia / MAUI / Console | **规划中（二阶段）** UI 适配包，当前未发布（见 §2.4/§3.12） |
 
 > 更新器不设 Abstractions 扩展包：扩展点由更新器 hooks（进程级）+ SDK 侧可替换服务承接。
 
@@ -39,23 +39,26 @@
 AtomUpdate
   ├── AtomUpdate.Abstractions
   ├── AtomUpdate.Core
+  ├── Microsoft.Extensions.Configuration
   ├── Microsoft.Extensions.DependencyInjection.Abstractions
+  ├── Microsoft.Extensions.Hosting.Abstractions
   ├── Microsoft.Extensions.Http
   ├── Microsoft.Extensions.Logging.Abstractions
   ├── Microsoft.Extensions.Options
+  ├── Microsoft.Extensions.Options.ConfigurationExtensions
   └── 内容文件：AtomUpdate.Updater（按 RID）
 ```
 
-依赖面收敛在 M.E.* 抽象包，不引入具体容器/日志实现，避免与宿主冲突。
+依赖面收敛在 M.E.* 抽象与配置包，不引入具体容器/日志实现，避免与宿主冲突。
 
 ### 2.3 目标框架与应用类型
 
-- 主目标 `net10.0`，**不支持旧版本、不做多目标**。
+- 主目标 `net11.0`，**不支持旧版本、不做多目标**。
 - 支持的应用类型：WPF / WinForms / Avalonia / MAUI 桌面 / 控制台 / **Windows 服务 / ASP.NET Core 服务**（服务型宿主无 UI：通知退化为 Console/日志，安装模式建议 onRestart）。
 
 ### 2.4 UI 适配包（可选安装）
 
-每包提供：更新提示弹窗、下载进度窗口、更新日志展示、强制更新窗口。MVP 范围：**Console + WPF + MAUI**，WinForms/Avalonia 二阶段。
+每包提供：更新提示弹窗、下载进度窗口、更新日志展示、强制更新窗口。**UI 适配包整体为二阶段交付项，当前均未发布**；控制台形态已由 `samples/AtomUpdate.Sample.Console` 覆盖，桌面/移动宿主当前直接用 SDK 事件自行驱动 UI（见 §3.12 与 [08 §7](08-SDK接入指南.md)）。
 
 ## 3. 快速接入与公共 API
 
@@ -68,10 +71,12 @@ builder.Services.AddAtomUpdate(options =>
     options.ServerUrl = "https://update.example.com";
     options.ProjectKey = "myapp";
     options.AppId = "com.company.myapp";
-    options.Channel = "stable";
+    options.Channel = UpdateChannel.Stable;   // 枚举，非字符串
     options.CurrentVersion = "1.2.3";
 });
 ```
+
+> 完整接入示例（含 using、检查/下载/安装调用）见 [08 §2](08-SDK接入指南.md)。
 
 ### 3.2 IAtomUpdater 门面
 
@@ -87,6 +92,7 @@ public interface IAtomUpdater
     Task<InstallResult> InstallAndRestartAsync(CancellationToken ct = default);
     void Postpone(TimeSpan duration);
     Task<CheckResult> CheckManuallyAsync(CancellationToken ct = default);
+    Task<bool> ReportStartupAsync(CancellationToken ct = default);
 
     // 事件：CheckCompleted / UpdateAvailable / DownloadStarted / DownloadProgressChanged /
     //       DownloadCompleted / DownloadFailed / UpdateReady / InstallStarted /
@@ -94,7 +100,7 @@ public interface IAtomUpdater
 }
 ```
 
-典型组合：启动前台下载 → `CheckAndDownloadAsync(UpdateTrigger.Startup)`；用户点击 → `InstallAndRestartAsync()`。
+典型组合：启动前台下载 → `CheckAndDownloadAsync(UpdateTrigger.Startup)`；用户点击 → `InstallAndRestartAsync()`。成员逐项说明见 [08 §4](08-SDK接入指南.md)。
 
 ### 3.3 分层子服务（均可替换，见 §3.9）
 
@@ -103,7 +109,7 @@ public interface IAtomUpdater
 | IUpdateChecker | Singleton | 检查（CheckContext：trigger/版本/通道/平台/架构/policyVersion/ETag） |
 | IUpdateDownloader | Singleton | 下载（DownloadContext + IProgress\<DownloadProgress\>：进度/速度/剩余时间） |
 | IUpdateInstaller | Singleton | 调度安装（InstallContext：准备更新器参数、启动更新器、主程序退出） |
-| IPolicyProvider | Singleton | 策略提供与合并（Current / CurrentVersion / UpdateAsync） |
+| IPolicyProvider | Singleton | 策略提供与合并（`GetCurrentAsync` / `ApplyServerPolicyAsync` / `GetCachedAsync` + `PolicyChanged` 事件） |
 | IUpdateNotifier | Singleton | 通知（NotificationType：UpdateAvailable/DownloadCompleted/UpdateReady/DownloadFailed/InstallFailed；支持 NotificationAction 按钮动作） |
 | IUpdateReporter | Singleton | 上报（Check/Download/Install/Startup/ReportBatchAsync 五方法） |
 | IStateStore | Singleton | 键值持久化抽象，默认文件实现 |
@@ -126,7 +132,7 @@ UpdateAvailable → ForegroundDownloading | SilentDownloading → Downloaded
 任何阶段 → Failed（可重试回 Checking）；UpdateAvailable → Postponed（超期/超次 → 强制路径）
 ```
 
-SDK 消费更新器退出码（§4.6）与状态文件驱动 `Installing → Completed/Failed` 迁移。
+SDK **不消费更新器退出码**（更新器在主程序退出后独立运行，SDK 无法同进程等待其退出码）；`Installing → Completed/Failed/RolledBack` 迁移由 SDK 下次启动回读状态文件（`updater-state.json`）驱动，退出码仅供更新器自身日志/回传与人工排查（§4.6）。
 
 安装三态语义："**标记 + 调度**"——`ReadyToInstall → InstallScheduled`（写状态文件、置 `InstallScheduled`/`RestartPending`）由 SDK 完成，`Installing → Completed/Failed` 由更新器回传驱动。解析路径：`Updater.UpdaterPath` 可解析时一律写临时配置并拉起更新器进程；解析不到时（开发场景未内嵌更新器）`OnRestart` 退化为纯调度——把包路径写入 `ScheduledInstall` 状态键并返回 `InstallResult.ScheduledOk()`（不视为失败），`Manual`/`Immediate` 则返回 `UPDATER_NOT_FOUND`。
 
@@ -136,22 +142,17 @@ SDK 消费更新器退出码（§4.6）与状态文件驱动 `Installing → Com
 public enum UpdateTrigger { Startup, Polling, Manual, NetworkRecovery, Resume, Force }
 ```
 
-强制更新（服务端 `forceUpdate:true` 或 current < minSupportedVersion）：前台下载、不可取消/推迟/跳过、阻止进入主界面。SDK 侧由 InstallScheduler 保证推迟上限与截止时间。
+强制更新（服务端 `forceUpdate:true` 或 current < minSupportedVersion）：前台下载、不可取消/推迟/跳过、阻止进入主界面。推迟上限与超期判定由 `AtomUpdater.Postpone` / `IsPostponeExhausted` 保证：`Postpone(duration)` 记 `PostponeCount++` 与 `PostponedUntil = now + duration`（两者持久化），超次（`>= MaxPostponeCount`）或超 `PostponedUntil` 即进入强制路径。注意 `Install.PostponeDeadline` 配置键当前**未被消费**（超期只由 `Postpone` 传入的 `duration` 决定），属保留字段。
 
 ### 3.7 配置体系（AtomUpdateOptions）
 
-| 子配置 | 关键项（默认值） |
-|---|---|
-| Polling | Enabled(true)、CheckOnStartup(true)、Interval(6h)、Jitter(±10min)、CheckOnNetworkRecovery(true)、CheckOnResume(true)、InitialDelay(5s)、Backoff(Initial 1m / Max 30m / ×2) |
-| Download | 六场景模式（Startup/ManualCheck/ForceUpdate=Foreground，Polling/NetworkRecovery/Resume=Silent）、AllowMeteredNetwork(false)、MaxConcurrentDownloads(1)、MaxDownloadSpeedKBps(0)、PauseOnLowBattery(true)、RetryCount(3)、**无进展超时 60s（stall timeout，替代总时长上限）**、TempDirectory |
-| Verify | RequireSignature(false)；默认不验签、置 true 启用（SHA256 始终强制）；开关仅本地配置，服务端策略不可覆盖（启用后防降级）。**签名可选**：仅当发布方为包写入了签名字段时才可启用。SDK 侧 `requireSignature=true` 只校验"选中的包带 `signature`"，缺签名即 `VerifyFailed`；有签名时**跳过密码学验证并记 Warning**（`UpdateDownloader`，SDK 侧公钥集分发归二阶段）。真正的验签发生在更新器安装层（§4.13 `verification`） |
-| Install | Mode(OnRestart)、AllowPostpone(true)、MaxPostponeCount(3)、PostponeDeadline、AllowDowngrade(false)、RestartArgs(--skip-update-check) |
-| Notify | Mode(Auto)、ShowReleaseNotes/ShowOnReady(true)、ShowOnDownloadFailed(false)、Title/Body 模板（`{version}` 占位） |
-| Cache | EnablePolicyCache(true)、EnableETag(true)、**EnableOfflineReport(true)**、CacheDirectory、CacheExpiration |
-| Updater | UpdaterPath、**AutoExtractUpdater(true)**、WaitForMainProcessExit(5s)；更新器自升级不在 SDK 侧开关，由更新器配置 `selfUpdate.*` 决定（§4.12） |
-| Report | Enabled(true)、ReportOnStartup(true)、ReportMachineFingerprint/ReportInstallationId(true)、RetryCount(3)、Timeout(15s)、FallbackToLocal(true) |
-| Network | Proxy、Timeout(30s)、RetryCount(3)、UseDefaultCredentials、UserAgent |
-| Logging | MinLevel(Information)、LogToFile(false)、LogDirectory、RetentionDays(7) |
+配置分 10 节：Polling / Download / Verify / Install / Notify / Cache / Updater / Report / Network / Logging。**逐键默认值与说明以 [08 §3](08-SDK接入指南.md) 为准**（接入方参考），本节只记设计要点与落地现状：
+
+- **Download**：六触发场景 → 下载模式映射（Startup/Manual/Force=Foreground，Polling/NetworkRecovery/Resume=Silent）；下载用**无进展超时**（stall timeout，默认 60s 无字节进展才中断，替代总时长上限）。`MaxConcurrentDownloads`、`PauseOnLowBattery` 为**保留键**——前者无并发下载消费方，后者依赖未实现的电源探测（§3.11），当前均不生效。
+- **Verify**：`RequireSignature`（默认 false）只校验"选中的包带 `signature`"，缺签名即 `VerifyFailed`；有签名时 SDK **跳过密码学验证并记 Warning**（公钥集分发归二阶段），真正的验签在更新器安装层（§4.13 `verification`）。该开关**仅本地配置、服务端策略不可覆盖**（否则构成降级攻击向量）。SHA256 始终强制。
+- **Install**：`PostponeDeadline` 为**保留键**（未被消费，超期只由 `Postpone(duration)` 决定，见 §3.6）。
+- **Logging**：`MinLevel/LogToFile/LogDirectory/RetentionDays` 均为**保留键**——SDK 日志经 `IUpdateLogger` 桥接宿主 `M.E.Logging`，无独立文件日志消费方。
+- 其余节（Polling/Notify/Cache/Updater/Report/Network）键值与 08 §3 一致，此处不重复。
 
 **配置优先级（低→高）：**
 
@@ -165,7 +166,7 @@ public enum UpdateTrigger { Startup, Polling, Manual, NetworkRecovery, Resume, F
 
 ### 3.8 策略缓存与合并
 
-- 缓存内容：policy / policyVersion / ETag / latestVersion / lastCheckedAt（`IPolicyCache`，`CachedPolicy` 模型）。
+- 缓存内容：policy / policyVersion / ETag / latestVersion / lastCheckedAt / **lastPayload**（上次完整检查响应，304 时据此还原结论）（`IPolicyCache`，`CachedPolicy` 模型）。
 - 缓存位置：`%LocalAppData%\AtomUpdate\cache\{appId}\`（macOS `~/Library/Application Support/AtomUpdate/cache/{appId}/`，Linux `~/.config/AtomUpdate/cache/{appId}/`）；按应用隔离，避免同机多应用互相覆盖策略缓存。
 - **策略合并（服务端下发字段可能不完整）**：`SDK 内置默认 → 本地配置 → 服务端上次下发 → 服务端本次下发`。
 - `policyUnchanged`（服务端省略 policy 字段）时，缓存必须**保留上一次的服务端策略与 policyVersion**，不能被 null/0 覆盖——否则下次检查退化为内置默认，表现为"同一台机器第二次手动检查不再自动下载"（有 E2E 回归与单测守护：`UpdateCheckerTests.PolicyUnchanged_KeepsCachedServerPolicy`）。
@@ -185,7 +186,7 @@ services.AddAtomUpdate(options => { ... })
 
 ### 3.10 HTTP 客户端契约
 
-- 请求头：`User-Agent: AtomUpdate/{version} ({os}; {arch})`、`If-None-Match: {etag}`（公开端点无需鉴权头；管理端 JWT 用 `Authorization`）。
+- 请求头：`User-Agent: AtomUpdate/0.1.0 ({os}; {arch})`（版本段为固定串，非程序集版本）、`If-None-Match: {etag}`（公开端点无需鉴权头；管理端 JWT 用 `Authorization`）。
 - 超时：检查 30s / 上报 15s / 下载采用**无进展超时**（stall timeout，60s 无字节进展才中断，无总时长上限）。
 - 重试：检查 3 次指数退避；上报失败即落 `pending-reports`（上报当前为单次 POST、无在线重试，可靠性由启动补报承担）；下载 3 次 + 断点续传。
 - 代理：NetworkOptions.Proxy 或系统默认代理；所有调用支持 CancellationToken。
@@ -229,8 +230,8 @@ NotifyMode：Auto / System / Tray / InApp / Console / None。Auto 选择逻辑�
 | 数据 | 位置（相对 AtomUpdate 根目录） |
 |---|---|
 | installationId | state/{appId}/installation.json（匿名 UUID，首次生成，不重置；按应用隔离——Installation 按 App 注册，共享会撞主键） |
-| machineFingerprint | state/{appId}/fingerprint.json（硬件哈希含租户盐，按应用隔离；可由 Report.ReportMachineFingerprint=false 关闭） |
-| policy / 上次检查时间 | cache/{appId}/policy.json、cache/{appId}/last-check.json（按应用隔离） |
+| machineFingerprint | state/{appId}/fingerprint.json（硬件哈希含**应用级盐** `SHA256(machineId|appId)` 取前 32 hex，按应用隔离；可由 Report.ReportMachineFingerprint=false 关闭） |
+| policy / 上次检查时间 | cache/{appId}/policy.json（上次检查时间作为其 `LastCheckedAt` 字段，**不单独成 last-check.json**；按应用隔离） |
 | **待上报事件** | state/{appId}/pending-reports/（更新器失败落盘 + SDK 上报失败落盘；启动时读取补报，成功后删除。按应用隔离） |
 | 下载缓存 | cache/{appId}/downloads/（按应用隔离） |
 | **更新器回传状态** | state/{appId}/updater-state.json（更新器写、SDK 启动回读补报，见 §5.3） |
@@ -256,7 +257,7 @@ NotifyMode：Auto / System / Tray / InApp / Console / None。Auto 选择逻辑�
 ### 3.16 线程模型
 
 - 不阻塞主线程；所有异步操作返回 Task；轮询注册为 IHostedService（`PollingService` 以可变间隔循环实现——抖动/退避需要非固定周期，未用 `PeriodicTimer`）；下载用 HttpClient 流式 + IProgress\<T\>；事件在后台线程触发。
-- 落地补充：`IProgress<T>` 由内部 `InlineProgress<T>` 同步实现（见 §3.4），下载循环节流为"每 64KB 或每 250ms 一次"进度回调；`PollingService` 与 `StartupReportService` 各为一个 BackgroundService，`IAtomUpdater` 内部用 `SemaphoreSlim` 串行化检查/下载/安装，避免轮询与宿主手动调用交错。
+- 落地补充：`IProgress<T>` 由内部 `InlineProgress<T>` 同步实现（见 §3.4），下载循环节流为"每 64KB 或每 250ms 一次"进度回调；`PollingService` 与 `StartupReportService` 各为一个 BackgroundService，`IAtomUpdater` 内部用 `SemaphoreSlim` 串行化**检查与下载**（`CheckAsync`/`DownloadAsync`/`CheckAndDownloadAsync` 共用一把闸），避免轮询与宿主手动调用交错；`InstallAndRestartAsync` **不入闸**（安装是终态动作，调度后立即返回或拉起更新器，无需与检查/下载互斥）。
 
 ### 3.17 SDK 内部目录结构
 
@@ -264,9 +265,9 @@ NotifyMode：Auto / System / Tray / InApp / Console / None。Auto 选择逻辑�
 AtomUpdate（程序集）
   ├── DependencyInjection / Configuration
   ├── Check / Download / Install / Policy / Notify / Report
-  ├── State / Cache / Http / Platform / Polling / Updater / Logging
+  ├── State / Platform / Polling / Logging / Internal
 AtomUpdate.Abstractions
-  ├── Interfaces / Models / Events / Enums / Exceptions
+  ├── Enums / Events / Exceptions / Interfaces / Models
 ```
 
 ---
@@ -286,7 +287,7 @@ MyApp.exe（普通权限）
    ↓ UseShellExecute=false, CreateNoWindow 启动
 AtomUpdate.Updater.exe（普通权限启动，按需提权）
    ├─ 需要提权 → 重新以提权方式启动自己
-   ├─ 需要自升级 → AtomUpdate.Updater.New.exe --replace-old
+   ├─ 需要自升级 → AtomUpdate.Updater.New.exe --replace-old <旧路径> --replace-pid <PID> --config <handoff>
    └─ 安装完成 → 启动 MyApp.exe --skip-update-check
 ```
 
@@ -295,34 +296,26 @@ AtomUpdate.Updater.exe（普通权限启动，按需提权）
 ```
 AtomUpdate.Updater.exe
   --config <path>  --package <path>  --target <path>
-  --from-version <v>  --to-version <v>
-  --restart <path>  --restart-args <args>
-  --sha256 <hash>  --signature <sig>  --key-id <id>
-  --package-type <zip|exe|msi|dmg|pkg|appimage|deb|rpm>
+  --from-version <v>  --to-version <v>  --package-type <zip|exe|msi|dmg|pkg|appimage|deb|rpm>
   --install-mode <manual|onRestart|immediate>  --install-args <args>
-  --replace-old  --server-url <url>
-  --installation-id <id>  --machine-fingerprint <fp>
-  --log-level <level>  --log-path <path>
-  --dry-run  --no-restart  --no-rollback  --verbose
+  --sha256 <hash>  --signature <sig>  --key-id <id>
+  --restart <path>  --restart-args <args>
+  --server-url <url>  --installation-id <id>  --machine-fingerprint <fp>
+  --app-id <id>  --project-key <key>
+  --replace-old <path>  --replace-pid <pid>
+  --log-level <level>  --log-path <dir>
+  --dry-run  --no-restart  --no-rollback  --verbose  --help
 ```
 
-- 优先级：命令行 > 配置文件 > 内置默认值（完整五层见 §4.13）；必填 `--package / --target / --to-version / --package-type`；校验失败退出码 `0x1002`。
+- 优先级：命令行 > 配置文件 > 内置默认值（完整五层见 §4.13）；必填 `--package / --target / --to-version / --package-type`；校验失败退出码 `0x1002`。逐项说明见 [10 §3](10-更新器配置参考.md)。
 
 ### 4.4 状态文件
 
-| 平台 | 路径 |
-|---|---|
-| Windows | `%LocalAppData%\AtomUpdate\state\{appId}\updater-state.json` |
-| macOS | `~/Library/Application Support/AtomUpdate/state/{appId}/updater-state.json` |
-| Linux | `~/.config/AtomUpdate/state/{appId}/updater-state.json` |
+路径 `{stateRoot}/{appId}/updater-state.json`（按 appId 隔离，避免同机多应用互相覆盖回传状态）；平台目录与**完整字段表见 [10 §5/§6](10-更新器配置参考.md)**。此处只记设计要点：
 
-按 appId 隔离目录，避免同机多应用互相覆盖回传状态。
-
-字段：installationId / machineFingerprint / projectKey / appId / fromVersion / toVersion / stage（starting/verifying/installing/completed/failed/rolledBack）/ result（success/failed/rolledBack）/ reason / installMode / elevated / elevationRejected / errorCode（`0x1004` 这类十六进制字符串）/ errorMessage / logPath / timestamp / retryCount / reported / **updaterVersion**（取更新器程序集 InformationalVersion，随状态回传供服务端定位"哪个更新器版本出的问题"）（补报字段与 §5.3 回传内容对齐）。
-
-实现要点：`retryCount` 由同 from→to 的上一份状态递增（不是网络重试次数，指同一目标版本的重试安装次数）；errorCode/errorMessage 在回滚失败时被改写为 `0x1009` 并保留原始错误文本；`reported` 的写入时机见 §5.3。字段集与 SDK 侧 `UpdaterStateFile` 的镜像关系由 `ConsistencyTests` 反射守护。
-
-生命周期：启动写 `starting` → 安装写 `installing` → 终态 → 尝试回传（失败保持 `reported=false` 等 SDK 补报，见 §3.14 pending-reports）。
+- 关键字段：`stage`（starting/verifying/installing/completed/failed/rolledBack）、`result`、`errorCode`（`0x1004` 这类十六进制字符串）、`reported`、`updaterVersion`（取更新器程序集 InformationalVersion，随回传上报供服务端定位"哪个更新器版本出的问题"）；补报字段与 §5.3 回传内容对齐。
+- `retryCount` 由同 from→to 的上一份状态递增（指同一目标版本的重试安装次数，非网络重试）；回滚失败时 errorCode/errorMessage 改写为 `0x1009` 并保留原始错误文本；`reported` 写入时机见 §5.3。字段集与 SDK 侧 `UpdaterStateFile` 的镜像关系由 `ConsistencyTests` 反射守护。
+- 生命周期：启动写 `starting` → 安装写 `installing` → 终态 → 尝试回传（失败保持 `reported=false` 等 SDK 补报，见 §3.14 pending-reports）。
 
 ### 4.5 主流程
 
@@ -333,7 +326,7 @@ AtomUpdate.Updater.exe
  → 自升级检查（需要 → New.exe --replace-old → 退出）
  → 读取既有状态文件
  → 校验参数（失败 → 0x1002）
- → 校验更新包 SHA256 / 签名（失败 → 0x1004；SHA256 强制，签名按 verification.requireSignature、默认不验）
+ → 校验更新包 SHA256 / 签名（失败 → 0x1004；提供 `--sha256` 即强制校验、未提供则跳过，签名按 verification.requireSignature、默认不验）
  → 提权预判（需要且未提权 → 自我提权；被拒 → 0x1003）
  → preInstall → 备份 → preReplace → 替换/运行安装器
  → postReplace → postInstall
@@ -353,16 +346,9 @@ AtomUpdate.Updater.exe
 
 ### 4.6 退出码体系
 
-| 错误码 | 说明 | | 错误码 | 说明 |
-|---|---|---|---|---|
-| 0x0000 | 成功 | | 0x1006 | 替换失败 |
-| 0x1001 | 互斥获取失败 | | 0x1007 | 安装器失败 |
-| 0x1002 | 参数错误 | | 0x1008 | 钩子失败 |
-| 0x1003 | 提权被拒绝 | | 0x1009 | 回滚失败 |
-| 0x1004 | 校验失败 | | 0x100A | 重启失败 |
-| 0x1005 | 备份失败 | | 0x100B | 未知错误 |
+退出码 `0x0000`（成功）/ `0x1001`~`0x100B`（互斥/参数/提权/校验/备份/替换/安装器/钩子/回滚/重启/未知失败），**完整表见 [10 §4](10-更新器配置参考.md)**；常量定义在更新器 `ExitCodes`，与 SDK 侧由 `ConsistencyTests` 守护一致。
 
-SDK 依据退出码驱动 UI：`0x1003` → 授权界面循环；`0x1001` → 稍后重试；其余失败 → 显示原因，仅重试。
+退出码写入状态文件 `errorCode` 并随回传上报，供服务端定位与人工排查；**SDK 当前不同进程消费退出码驱动 UI**（更新器在主程序退出后独立运行，见 §3.5）。"按 `0x1003` 弹授权界面循环、`0x1001` 稍后重试"等 UI 联动为规划项，尚未落地。
 
 ### 4.7 各包类型安装
 
@@ -380,15 +366,15 @@ MVP：zip + exe（Inno Setup）；msi 二阶段；dmg/pkg/AppImage/deb/rpm 第�
 
 - 已实现 `ZipInstaller`（zip 全包 + zip delta）与 `ExeInstaller`；其余类型统一走 `UnsupportedInstaller` → **明确失败 0x1007**（记日志"该包类型的安装器尚未实现"），不静默跳过。接口名为 `IPackageInstaller` + `PackageInstallerFactory`（按 `packageType` 分派）。
 - delta 识别：`kind` 缺省时按包内容自动判定（包内同时含 `manifest.json` 与 `delete.json` 即 delta）；SDK 侧只在资产 `kind=delta` 时显式写 `"delta"`，全包留 null（见 §5.1）。manifest 的 `fromVersion` 与任务 `fromVersion` 不符 → 0x1004。
-- `ExeInstaller` 不产生回滚清单（文件替换由安装器自行管理），因此 exe 路径失败后不回滚；参数优先级：包元数据 `silentArgs`/`installArgs` → `install.installArgs` → `--install-args`（CLI 已合并进后者）。
+- `ExeInstaller` 不产生回滚清单（文件替换由安装器自行管理），因此 exe 路径失败后不回滚；参数拼接为 `silentArgs`（始终取包元数据）+ `installArgs`，其中 `installArgs` 优先级：任务顶层 `installArgs`（SDK 写入包元数据值；`--install-args` 若给出则**覆盖**它）→ 回退 `install.installArgs` 配置节。
 - 替换引擎在 `Replace/`：`FileReplacer`（占用重试 `install.replaceRetryCount`/`replaceRetryDelayMs`，超限 0x1006）+ `GlobMatcher` + `BackupManifest` + `RollbackManager`；备份由 zip 链路内部完成（`Backup/` 不单独成模块）。
 
 ### 4.8 钩子系统
 
-- 阶段：preDownload / postDownload / preInstall / postInstall / preReplace / postReplace / preRestart / postRestart。
+- 阶段（6 个，`HookStages` 常量）：preInstall / postInstall / preReplace / postReplace / preRestart / postRestart。**无 preDownload/postDownload**（下载在 SDK 侧，更新器不下载业务包）。
 - 执行：Windows `.bat/.cmd`→`cmd /c`、`.ps1`→`powershell -ExecutionPolicy Bypass -File`、`.exe` 直接执行；macOS/Linux `.sh`→`/bin/sh`，可执行文件直接执行。
 - 规则：超时 `hookTimeoutSeconds`（默认 60）视为失败；`hookFailPolicy`：abort（中断+回滚）/ continue；输出写日志；工作目录为目标目录。
-- 环境变量注入：`ATOMUPDATE_FROM_VERSION / TO_VERSION / TARGET / PACKAGE / STAGE / LOG_PATH / INSTALLATION_ID`。
+- 环境变量注入：`ATOMUPDATE_FROM_VERSION / TO_VERSION / TARGET / PACKAGE / STAGE / LOG_PATH / LOG_DIR / INSTALLATION_ID`。
 
 ### 4.9 替换策略
 
@@ -399,10 +385,10 @@ MVP：zip + exe（Inno Setup）；msi 二阶段；dmg/pkg/AppImage/deb/rpm 第�
 
 ### 4.10 提权
 
-- 预判：写目标目录探测，或按路径预判（Program Files、/Applications、/usr/local → 需要；用户目录 → 不需要）。
-- 方式：Windows `runas`；macOS `osascript`；Linux `pkexec/sudo`。自我提权前检查 `IsElevated`，避免重复弹 UAC。
+- 预判（`onDemand` + `skipIfNotNeeded`）：向目标目录写探测文件（`.atomupdate-write-test-{guid}`）——可写则不提权，`UnauthorizedAccessException` 则需要提权；**仅写探测，无按路径（Program Files / /Applications 等）预判**。已提权（`IsElevated`）直接跳过，避免重复弹 UAC。
+- 方式：Windows `runas`；macOS `osascript`；Linux `pkexec/sudo`。
 - 拒绝闭环：状态文件 `elevationRejected=true, reason=access_denied` → 回传 → `0x1003` → 主程序授权界面（无次数限制，允许退出，不授权不能继续使用）→ 重新授权后 SDK 以 runas 重启。
-- 配置：elevation.mode（onDemand/always/never）、retry（unlimited/数字）、allowExit、skipIfNotNeeded。
+- 配置：elevation.mode（onDemand/always/never）、retry（`unlimited` 或数字，**本进程内 `unlimited` 亦按单次尝试处理**，跨次授权循环由 SDK 负责）、allowExit、skipIfNotNeeded。
 
 ### 4.11 全局互斥
 
@@ -437,23 +423,18 @@ Updater.exe → 自升级检查（checkBeforeInstall；失败/断网时记日志
 
 优先级（低→高）：内置默认 → 安装目录 `updater.default.json` → `--config` 指定文件 → 环境变量 `ATOMUPDATE_UPDATER_CONFIG` → 命令行参数。其中 `verification` 节仅取前两层（内置默认 → `updater.default.json`），不参与运行时参数合并——防同机攻击者注入降级校验。
 
-| 节 | 关键字段 |
-|---|---|
-| updater | logLevel(information)、logPath、logRetentionDays(7)、globalMutex(true)、mutexTimeoutSeconds(0)、dryRun(false) |
-| verification | requireSignature（默认 false；置 true 启用签名验证、SHA256 始终强制；仅从内置默认与安装目录 updater.default.json 读取）、publicKeys{}（keyId→RSA 公钥 PEM，随客户端分发内嵌） |
-| selfUpdate | enabled(true)、mode(dualProcess)、serverUrl、checkBeforeInstall(true)、manifestUrl（空=跳过自升级，见 §4.12） |
-| elevation | mode(onDemand)、retry(unlimited)、allowExit(true)、skipIfNotNeeded(true) |
-| install | strategy(merge)、exclude[]、preserve[]、deleteOrphans(false)、backupBeforeReplace(true)、backupPath、backupRetentionDays(3)、replaceRetryCount(3)、replaceRetryDelayMs(250)、hooks{}、hookTimeoutSeconds(60)、hookFailPolicy(abort)、installArgs |
-| rollback | enabled(true)、onFailure(true)、keepBackupOnSuccess(false) |
-| restart | enabled(true)、args(--skip-update-check)、delayMs(500)、waitForExitMs(5000，等主程序退出；任务字段 `waitForMainProcessExitSeconds` 以秒覆盖它，见 §5.1/§5.2) |
-| report | enabled(true)、serverUrl、timeoutSeconds(15)、retryCount(3)、fallbackToLocal(true) |
-| network | proxy、timeoutSeconds(30)、retryCount(3) |
+配置分 9 节：updater / verification / selfUpdate / elevation / install / rollback / restart / report / network。**逐键默认值与说明以 [10 §2](10-更新器配置参考.md) 为准**（查阅型参考），本节只记设计要点：
+
+- `verification`（requireSignature / publicKeys）只信任前两层，运行期传入一律丢弃（见下 `SettingsLoader` 要点）；publicKeys 随客户端分发内嵌，不从 Api 动态获取。
+- `selfUpdate.mode` / `selfUpdate.serverUrl` 为**保留键**（无消费方）；自升级实际由 `enabled` + `checkBeforeInstall` + `manifestUrl` 驱动（§4.12）。
+- `elevation.retry` 的 `unlimited` 按单次尝试处理（§4.10）；`report.fallbackToLocal` 在更新器侧为**保留键**（回传失败一律写 `reported=false`，§5.3）。
+- `restart.waitForExitMs`（毫秒）可被任务字段 `waitForMainProcessExitSeconds`（秒）覆盖（§5.1/§5.2）。
 
 实现要点（`UpdaterSettings` + `TaskValidation`）：
 
-- JSON 键 = 属性名 camelCase（`mutexTimeoutSeconds` / `replaceRetryCount` …），与上表一致；非法值在 `TaskValidation` 阶段报参数错误 0x1002（枚举串大小写不敏感：`onDemand`/`ondemand` 均可）。
+- JSON 键 = 属性名 camelCase（`mutexTimeoutSeconds` / `replaceRetryCount` …），与 [10 §2](10-更新器配置参考.md) 各表一致；非法值在 `TaskValidation` 阶段报参数错误 0x1002（枚举串大小写不敏感：`onDemand`/`ondemand` 均可）。
 - **`report.enabled=false` 时状态文件直接写 `reported=true`**：本次安装不该由 SDK 补报（§5.3 回读据此跳过），不是"回传失败"。
-- `elevation.retry` 是字符串（`unlimited` 或数字），且只约束**本进程内**的连续提权；跨次授权循环由 SDK 负责（§4.10）。
+- `elevation.retry` 是字符串（`unlimited` 或数字），且只约束**本进程内**的连续提权（`unlimited` 亦按单次尝试处理）；跨次授权循环由 SDK 负责（§4.10）。
 - `install.hooks` 值可为单个命令字符串或命令数组（顺序执行），由 `HookCommandListConverter` 手写解析（AOT 无反射）。
 - `verification` 节只信任两层的语义落实在 `SettingsLoader`：合并完运行层（`--config` + 环境变量文件）后，把 JSON 的 `verification` 节点整体替换回"内置默认 + `updater.default.json`"的结果，因此任何运行期传入的 `verification.*` 都被丢弃。同理 `updater.default.json` 缺失是允许的，而 `--config`/环境变量指向的文件缺失直接算参数错误 0x1002。
 - `network.*` 作用于自升级清单/下载与回传客户端；`report.timeoutSeconds`/`retryCount` 只作用于回传（3 次指数退避）。
@@ -462,7 +443,7 @@ Updater.exe → 自升级检查（checkBeforeInstall；失败/断网时记日志
 ### 4.14 日志与回滚
 
 - 日志：按天切分、保留 7 天（可配）；Windows `%LocalAppData%\AtomUpdate\logs\updater\`，macOS `~/Library/Logs/AtomUpdate/updater/`，Linux `~/.local/share/AtomUpdate/logs/updater/`；不记录私钥/密码。
-- 回滚触发：替换失败 / 安装器失败 / 钩子失败且 abort / 用户中断。流程：停止 → 从备份恢复 → 校验 → 写状态 → 回传 → 重启旧版本。回滚也失败（0x1009）→ 提示手动恢复。部分失败默认不回滚已替换文件（除非配置）。
+- 回滚触发：替换失败 / 安装器失败 / 钩子失败且 abort / 未预期异常（且 `rollback.enabled && onFailure` 并持有回滚清单）。流程（`FailAsync`）：`RollbackManager.Restore` 从备份恢复 → 写终态状态（`rolledBack`；恢复失败则 `failed` + `0x1009`）→ 回传。**无恢复后校验、无重启旧版本、无用户中断触发**（更新器在主程序退出后无头运行）。回滚也失败（0x1009）→ 状态记原始错误 + 备份目录，提示手动恢复。
 - 备份保留：成功默认删除（keepBackupOnSuccess=false），保留 3 天。
 
 ### 4.15 更新器模块划分
@@ -541,7 +522,7 @@ Updater: 安装 → delayMs(500) 后重启主程序（带 --skip-update-check）
 - **`reported=true` 的写回时机**：已送达 **或** 已入本地补报队列（`Report.FallbackToLocal && Cache.EnableOfflineReport`，此时交付责任转交给队列）；两者都不成立则保留 `reported=false`，下次启动重试。回写失败只记 Warning。
 - stage/installMode 字符串→枚举映射在 SDK 侧：`verifying`/`installing`/`completed`/`failed`/`rolledBack`，未识别值归 `starting`；installMode 未识别归 `onRestart`。状态文件字段镜像由 `ConsistencyTests.SdkUpdaterStateFile_MirrorsUpdaterState` 反射守护（更新器加字段而 SDK 不认识时，回读会静默丢信息，靠该测试提醒同步）。
 
-服务端 `POST /api/report/install` 已实现幂等——唯一索引 `(AppId, InstallationId, ToVersion, Stage, ErrorCode)`（`AreNullsDistinct(false)`），重复直传/补报返回 `200 {accepted:true, duplicate:true}` 且不插新行；请求体即 `AtomUpdate.Abstractions` 的 `InstallReport` 契约（枚举按字符串，PascalCase）。
+服务端 `POST /api/report/install` 已实现幂等——唯一索引 `(AppId, InstallationId, ToVersion, Stage, ErrorCode)`（`AreNullsDistinct(false)`），重复直传/补报返回 `200 {accepted:true, duplicate:true}` 且不插新行；更新器回传体由 `UpdaterJsonContext`（source-gen，**camelCase** + null 省略）序列化，字段名与服务端 `InstallReport` 契约一致。
 
 ## 6. 更新器分发
 
@@ -579,7 +560,8 @@ Updater: 安装 → delayMs(500) 后重启主程序（带 --skip-update-check）
 
 测试现状：
 
-- **更新器单测 97 例**（`tests/AtomUpdate.Tests.Updater`）：CLI 解析、五层配置合并与 verification 锁定、TaskValidation、SHA256/签名与 delta 清单校验、glob/替换/回滚、钩子、状态文件与互斥、自升级版本比较、启动配置清理，以及 `ConsistencyTests`——用反射/round-trip 守护"更新器不引用 Core/SDK"这一前提下的三份跨组件契约（ExitCodes 常量、`UpdaterLaunchConfig`↔`UpdaterTaskFile`、`UpdaterStateFile`↔`UpdaterState`）。
-- **SDK 单测 67 例**（`tests/AtomUpdate.Tests.Sdk`）含 `UpdaterIntegrationTests` 16 例：RID 映射、内嵌资产探测顺序、释放与幂等与 Unix 执行位、启动配置逐字段映射、状态回读补报的送达/入队/保留三种分支。
+- **更新器单测**（`tests/AtomUpdate.Tests.Updater`）：CLI 解析、五层配置合并与 verification 锁定、TaskValidation、SHA256/签名与 delta 清单校验、glob/替换/回滚、钩子、状态文件与互斥、自升级版本比较、启动配置清理，以及 `ConsistencyTests`——用反射/round-trip 守护"更新器不引用 Core/SDK"这一前提下的三份跨组件契约（ExitCodes 常量、`UpdaterLaunchConfig`↔`UpdaterTaskFile`、`UpdaterStateFile`↔`UpdaterState`）。
+- **SDK 单测**（`tests/AtomUpdate.Tests.Sdk`）含 `UpdaterIntegrationTests`：RID 映射、内嵌资产探测顺序、释放与幂等与 Unix 执行位、启动配置逐字段映射、状态回读补报的送达/入队/保留三种分支。
+- 具体用例数随迭代变动，以 `dotnet test` 实际结果为准（不在文档内固化数字）。
 - **端到端冒烟**：脚本化真二进制验证（`--help`/参数错误/坏 SHA/dry-run/zip 合并安装/delta 基线不匹配/delta 安装+钩子+回传关闭/`keepBackupOnSuccess`/日志文件），Windows 实测；其余 RID 由 CI 的 AOT 构建保证可编译发布，运行期未实测。
 - 提权被拒（0x1003）、互斥占用（0x1001）、回滚失败（0x1009）等需要交互或多进程的路径以单测覆盖，未做真机 UAC 自动化。

@@ -12,7 +12,7 @@ namespace AtomUpdate.Api.Endpoints.Manage;
 
 internal static class TenantEndpoints
 {
-    // 租户为平台级操作（不按 tenant_id 过滤）：仅平台管理员（M2 两级权限模型，docs/07 §4.2）
+    // 租户为平台级操作（不按 tenant_id 过滤）：仅平台管理员（两级权限模型）
     internal static void Map(IEndpointRouteBuilder group)
     {
         var platform = group.MapGroup("").RequireAuthorization(AuthPolicies.PlatformAdmin);

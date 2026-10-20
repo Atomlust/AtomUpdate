@@ -70,7 +70,7 @@ public sealed class PollingOptions
     public double BackoffFactor { get; set; } = 2;
 }
 
-/// <summary>下载配置（04 §3.7 六场景模式 + Q20 无进展超时）。</summary>
+/// <summary>下载配置（04 §3.7 六场景模式 + 无进展超时）。</summary>
 public sealed class DownloadOptions
 {
     /// <summary>各触发场景的默认下载模式：Startup/ManualCheck/ForceUpdate=Foreground，Polling/NetworkRecovery/Resume=Silent。</summary>
@@ -101,14 +101,14 @@ public sealed class DownloadOptions
     /// <summary>失败重试次数。</summary>
     public int RetryCount { get; set; } = 3;
 
-    /// <summary>无进展超时秒数（Q20：60s 无字节进展才中断；0 = 不启用）。</summary>
+    /// <summary>无进展超时秒数（60s 无字节进展才中断；0 = 不启用）。</summary>
     public int StallTimeoutSeconds { get; set; } = 60;
 
     /// <summary>下载临时目录（null = cache/{appId}/downloads/）。</summary>
     public string? TempDirectory { get; set; }
 }
 
-/// <summary>校验配置。开关仅本地配置，服务端策略不可覆盖（防降级攻击向量，2026-10-06 确认）。SHA256 始终强制。</summary>
+/// <summary>校验配置。开关仅本地配置，服务端策略不可覆盖（防降级攻击向量）。SHA256 始终强制。</summary>
 public sealed class VerifyOptions
 {
     /// <summary>默认不验签；置 true 启用签名验证（公钥内嵌分发，不从服务端获取）。</summary>
@@ -158,7 +158,7 @@ public sealed class CacheOptions
 
     public bool EnableETag { get; set; } = true;
 
-    /// <summary>上报失败落盘待补报（Q15）。</summary>
+    /// <summary>上报失败落盘待补报。</summary>
     public bool EnableOfflineReport { get; set; } = true;
 
     /// <summary>缓存根目录（null = 平台默认 AtomUpdate 根目录）。</summary>
@@ -168,7 +168,7 @@ public sealed class CacheOptions
     public TimeSpan? CacheExpiration { get; set; }
 }
 
-/// <summary>更新器配置（04 §5.2）。更新器本体归 M4。</summary>
+/// <summary>更新器配置（04 §5.2）。</summary>
 /// <summary>更新器配置（04 §5.2）。更新器自身升级不在 SDK 侧开关——由更新器配置的 `selfUpdate.*` 决定（04 §4.12/§4.13）。</summary>
 public sealed class UpdaterOptions
 {
@@ -181,7 +181,7 @@ public sealed class UpdaterOptions
     public int WaitForMainProcessExit { get; set; } = 5;
 }
 
-/// <summary>上报配置（04 §3.7 Report 节 + Q15 离线兜底）。</summary>
+/// <summary>上报配置（04 §3.7 Report 节 + 离线兜底）。</summary>
 public sealed class ReportOptions
 {
     public bool Enabled { get; set; } = true;

@@ -4,7 +4,7 @@ using AtomUpdate.Packager.Core;
 
 namespace AtomUpdate.Packager.Models;
 
-/// <summary>向导草稿（docs/05 §13）：drafts/{guid}.json，步骤切换时自动保存、启动时恢复最新。
+/// <summary>向导草稿（docs/05 §12）：drafts/{guid}.json，步骤切换时自动保存、启动时恢复最新。
 /// 安全口径：任何密钥均不入草稿（登录密码仅存于当次内存）。</summary>
 public sealed class WizardDraft
 {

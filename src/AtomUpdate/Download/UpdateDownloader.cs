@@ -10,7 +10,7 @@ using AtomUpdate.Core.Constants;
 
 namespace AtomUpdate.Download;
 
-/// <summary>下载器（04 §3.10/§3.16）：流式 + IProgress、断点续传（Range/206）、无进展超时（Q20）、限速、SHA256 强制校验、失败重试。</summary>
+/// <summary>下载器（04 §3.10/§3.16）：流式 + IProgress、断点续传（Range/206）、无进展超时、限速、SHA256 强制校验、失败重试。</summary>
 public sealed class UpdateDownloader(
     IHttpClientFactory httpClientFactory,
     AtomUpdateOptions options,
@@ -75,7 +75,7 @@ public sealed class UpdateDownloader(
             stallCts.CancelAfter(TimeSpan.FromSeconds(context.StallTimeoutSeconds));
         }
 
-        // 无进展看门狗：响应流的读未必响应取消（代理停顿/自定义内容），故用超时任务主动判定（Q20）
+        // 无进展看门狗：响应流的读未必响应取消（代理停顿/自定义内容），故用超时任务主动判定
         var watchdog = context.StallTimeoutSeconds > 0
             ? Task.Delay(Timeout.InfiniteTimeSpan, stallCts.Token)
             : null;
@@ -205,7 +205,7 @@ public sealed class UpdateDownloader(
                 $"SHA256 校验失败：期望 {package.Sha256}，实际 {actualHash}");
         }
 
-        // 签名验证：默认不验（Verify.RequireSignature 启用后，无签名即失败；公钥内嵌分发归 M4/M5 落地）
+        // 签名验证：默认不验（Verify.RequireSignature 启用后，无签名即失败；公钥内嵌分发）
         if (options.Verify.RequireSignature)
         {
             if (string.IsNullOrEmpty(package.Signature))
@@ -214,7 +214,7 @@ public sealed class UpdateDownloader(
                 return DownloadResult.Fail(ErrorCodes.VerifyFailed, "签名验证已启用但更新包未签名");
             }
 
-            logger.Warning("签名材料校验暂未接入公钥分发（M4/M5），本次跳过密码学验证");
+            logger.Warning("签名材料校验暂未接入公钥分发，本次跳过密码学验证");
         }
 
         File.Move(partialPath, targetPath, overwrite: true);

@@ -2,7 +2,7 @@ using AtomUpdate.Core.Enums;
 
 namespace AtomUpdate.Api.Data.Entities;
 
-/// <summary>下载日志（03 §2.4，按 DownloadReport 契约收敛：无 ReleaseAssetId/Mode，偏差见 07 §4）。
+/// <summary>下载日志（03 §2.4，按 DownloadReport 契约收敛：无 ReleaseAssetId/Mode）。
 /// 后台批量写；按月分区留待规模期。</summary>
 public sealed class DownloadLog : ITenantScoped
 {
@@ -13,7 +13,7 @@ public sealed class DownloadLog : ITenantScoped
     public string FromVersion { get; set; } = null!;
     public string ToVersion { get; set; } = null!;
 
-    /// <summary>包类型（full/delta；M6 起 SDK 上报，旧客户端为空）。</summary>
+    /// <summary>包类型（full/delta；SDK 上报，旧客户端为空）。</summary>
     public AssetKind? Kind { get; set; }
 
     public bool Success { get; set; }

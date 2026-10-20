@@ -9,10 +9,10 @@ public sealed class UpdatePolicy : ITenantScoped
     public long TenantId { get; set; }
     public long AppId { get; set; }
 
-    /// <summary>通道级覆盖保留位（M2.5：MVP 仅 App 级，null）。</summary>
+    /// <summary>通道级覆盖保留位（MVP 仅 App 级，null）。</summary>
     public UpdateChannel? Channel { get; set; }
 
-    /// <summary>原 Channel 实体属性随通道枚举化并入策略域（Q5：默认防降级；强制更新默认门控关闭）。</summary>
+    /// <summary>原 Channel 实体属性随通道枚举化并入策略域（默认防降级；强制更新默认门控关闭）。</summary>
     public bool AllowForceUpdate { get; set; }
     public bool AllowDowngrade { get; set; }
 

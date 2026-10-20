@@ -91,7 +91,7 @@ internal static class CheckEndpoint
             return NotFound(ErrorCodes.AppNotFound, $"应用不存在：{request.AppId}");
         }
 
-        // 2) 平台守卫：平台属于应用（07 Q24），客户端上报的平台与应用注册平台不一致是配置错误，必须显式报错
+        // 2) 平台守卫：平台属于应用，客户端上报的平台与应用注册平台不一致是配置错误，必须显式报错
         if (request.Platform != app.Platform)
         {
             return BadRequest(ErrorCodes.PlatformMismatch,
@@ -99,7 +99,7 @@ internal static class CheckEndpoint
                 $"但请求上报的是 {request.Platform.ToString().ToLowerInvariant()}，请检查 AppId/构建目标是否用错");
         }
 
-        // 3) 通道：UpdateChannel 枚举（M2.5），缺省 stable
+        // 3) 通道：UpdateChannel 枚举，缺省 stable
         var channel = request.Channel ?? UpdateChannel.Stable;
 
         // 4) 策略分发：仅当客户端版本落后时才下发策略体（解析读缓存，策略变更端点失效）
@@ -117,7 +117,7 @@ internal static class CheckEndpoint
         var currentNorm = current.ToNormalizedString();
         var latestVersion = latest?.Version ?? currentNorm;
 
-        // 架构在各资产上（07 Q24）：先按客户端架构筛出可用包，无对应包即视为无更新可发
+        // 架构在各资产上：先按客户端架构筛出可用包，无对应包即视为无更新可发
         var archAssets = ForArch(latest?.Assets, request.Arch);
 
         int? comparison = latest is null ? null : SemanticVersion.Parse(latest.Version).CompareTo(current);
@@ -175,7 +175,7 @@ internal static class CheckEndpoint
                        SemanticVersion.TryParse(minRaw, out var minSem) && current < minSem;
         var forceUpdate = policy is { AllowForceUpdate: true } && (latest.ForceUpdate || belowMin);
 
-        // 发行说明随版本缓存（已发布版本不可编辑，Q11），命中后不再查说明表
+        // 发行说明随版本缓存（已发布版本不可编辑），命中后不再查说明表
         var note = latest?.Notes.FirstOrDefault(n => n.Language == "en") ?? latest?.Notes.FirstOrDefault();
 
         return Results.Ok(new CheckResponse
@@ -261,7 +261,7 @@ internal static class CheckEndpoint
         };
     }
 
-    /// <summary>按客户端架构筛资产（07 Q24）。arm64 无对应包时回落 x64（WoA/Rosetta 可转译运行），
+    /// <summary>按客户端架构筛资产。arm64 无对应包时回落 x64（WoA/Rosetta 可转译运行），
     /// 反向不回落——x64 机器跑不了 arm64 包，回落只会把不可用的包发给客户端。
     /// 无任何匹配架构时返回空集，由调用侧按"无更新可发"处理。</summary>
     private static IReadOnlyList<CachedReleaseAsset> ForArch(IReadOnlyList<CachedReleaseAsset>? assets,
@@ -345,7 +345,7 @@ internal static class CheckEndpoint
             UpdatedAt = policy.UpdatedAt
         };
 
-    /// <summary>ETag = hash16(projectKey|appId|platform|arch|currentVersion|latestVersion|p{policyVersion})，含 latestVersion 修正需求 §8.8 漏发缺陷（01 §5.1）。</summary>
+    /// <summary>ETag = hash16(projectKey|appId|platform|arch|currentVersion|latestVersion|p{policyVersion})，含 latestVersion 以修正"有更新但策略未变仍返回 304"的漏发缺陷（03 §3.1/§4）。</summary>
     private static string ComputeETag(string projectKey, string appId, UpdatePlatform platform, UpdateArch arch,
         string currentVersion, string latestVersion, int policyVersion)
     {

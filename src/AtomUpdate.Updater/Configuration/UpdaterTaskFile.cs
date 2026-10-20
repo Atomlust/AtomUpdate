@@ -38,7 +38,7 @@ public sealed class UpdaterTaskFile
 
     public string? MachineFingerprint { get; set; }
 
-    /// <summary>应用标识（状态目录隔离 Q15 / 互斥命名 Q14 / 回传内容）。</summary>
+    /// <summary>应用标识（状态目录隔离 / 互斥命名 / 回传内容）。</summary>
     public string? AppId { get; set; }
 
     public string? ProjectKey { get; set; }

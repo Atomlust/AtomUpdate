@@ -257,7 +257,7 @@ public class CheckEndpointTests(ApiFixture fixture)
     [Fact]
     public async Task Assets_Arm64Device_FallsBackToX64Package_WithPackageArch()
     {
-        // 只发 x64 包：arm64 客户端回落 x64 包（07 Q24），且响应带包架构（07 Q25 验签口径）
+        // 只发 x64 包：arm64 客户端回落 x64 包，且响应带包架构（验签口径）
         var scenario = await fixture.CreateScenarioAsync();
         await fixture.CreateAndPublishAsync(scenario.AdminToken, scenario, new ReleaseCreateRequest
         {
@@ -307,7 +307,7 @@ public class CheckEndpointTests(ApiFixture fixture)
         }
 
         var strictCheck = (await fixture.CheckAsync(ApiFixture.CheckBody(strict, "3.0.0"))).Expect(HttpStatusCode.OK);
-        Assert.False(strictCheck.Data.HasUpdate); // 默认防降级（Q5）
+        Assert.False(strictCheck.Data.HasUpdate); // 默认防降级
 
         var permissiveCheck = (await fixture.CheckAsync(ApiFixture.CheckBody(permissive, "3.0.0")))
             .Expect(HttpStatusCode.OK);

@@ -182,7 +182,7 @@ public static class UpdaterApp
             store.Save(state);
             PackageVerifier.Verify(task, log);
 
-            // 自升级检查与交接（04 §4.12；--replace-old 模式跳过防递归；检查失败跳过继续原任务，Q16）
+            // 自升级检查与交接（04 §4.12；--replace-old 模式跳过防递归；检查失败跳过继续原任务）
             if (string.IsNullOrWhiteSpace(cli.ReplaceOld) &&
                 await new SelfUpdater(task, log).TryHandoffAsync().ConfigureAwait(false))
             {

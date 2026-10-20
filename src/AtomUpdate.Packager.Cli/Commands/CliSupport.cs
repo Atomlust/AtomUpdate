@@ -4,13 +4,13 @@ using NuGet.Versioning;
 
 namespace AtomUpdate.Packager.Cli.Commands;
 
-/// <summary>命令参数语义错误（区别于解析结构错误）→ 退出码 1（docs/05 §16）。</summary>
+/// <summary>命令参数语义错误（区别于解析结构错误）→ 退出码 1（docs/05 §13）。</summary>
 internal sealed class CliArgumentException(string message) : Exception(message);
 
-/// <summary>版本已创建、仅通道发布阶段失败 → 退出码 7（docs/05 §16）。</summary>
+/// <summary>版本已创建、仅通道发布阶段失败 → 退出码 7（docs/05 §13）。</summary>
 internal sealed class CliPublishStageException(string message, Exception inner) : Exception(message, inner);
 
-/// <summary>命令公共解析助手：必填/枚举/数字/语义版本校验（docs/05 §16）。</summary>
+/// <summary>命令公共解析助手：必填/枚举/数字/语义版本校验（docs/05 §13）。</summary>
 internal static class CliSupport
 {
     public static PackagerPaths ResolvePaths(ParsedCli cli)

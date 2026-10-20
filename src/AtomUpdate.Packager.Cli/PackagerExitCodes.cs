@@ -1,6 +1,6 @@
 namespace AtomUpdate.Packager.Cli;
 
-/// <summary>CLI 退出码（docs/05 §16）：0 成功 / 1 参数 / 2 配置 / 3 打包 / 5 上传 / 6 推送 / 7 发布 / 8 未知。</summary>
+/// <summary>CLI 退出码（docs/05 §13）：0 成功 / 1 参数 / 2 配置 / 3 打包 / 5 上传 / 6 推送 / 7 发布 / 8 未知。</summary>
 public static class PackagerExitCodes
 {
     public const int Success = 0;

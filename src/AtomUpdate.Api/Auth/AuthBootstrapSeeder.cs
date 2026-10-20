@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AtomUpdate.Api.Auth;
 
-/// <summary>首个平台管理员引导（docs/07 §4.2）：用户表为空且 Auth:Bootstrap 已配置时，
+/// <summary>首个平台管理员引导：用户表为空且 Auth:Bootstrap 已配置时，
 /// 幂等创建默认租户 + 平台管理员；配置缺失仅告警跳过，不阻塞启动。</summary>
 public static class AuthBootstrapSeeder
 {

@@ -1,6 +1,6 @@
 namespace AtomUpdate.Packager.Core.Publishing;
 
-/// <summary>发布阶段（docs/05 §12 向导进度）。</summary>
+/// <summary>发布阶段（docs/05 §4 向导进度）。</summary>
 public enum PublishStage
 {
     Package,

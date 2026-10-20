@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AtomUpdate.Tests.Api;
 
-/// <summary>上报端点（M6）：公开匿名上报（按请求体反查租户）/ install 幂等 / batch 分派与坏行跳过 / 不存在应用不泄露 / Installation upsert。</summary>
+/// <summary>上报端点：公开匿名上报（按请求体反查租户）/ install 幂等 / batch 分派与坏行跳过 / 不存在应用不泄露 / Installation upsert。</summary>
 [Collection("api")]
 public class ReportEndpointTests(ApiFixture fixture)
 {

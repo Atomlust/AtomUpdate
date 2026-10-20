@@ -8,7 +8,7 @@ using AtomUpdate.Updater.Logging;
 
 namespace AtomUpdate.Tests.Packager;
 
-/// <summary>跨组件契约（docs/05 §7，M5 步骤 10）：Packager 真实产物（FileDeltaGenerator）
+/// <summary>跨组件契约（docs/05 §7）：Packager 真实产物（FileDeltaGenerator）
 /// 必须能被 Updater 真实消费方（ZipInstaller）安装——manifest.json/delete.json/files 布局、
 /// camelCase 字段、SHA256/size、fromVersion 校验与删除清单生效，不靠手写 JSON。</summary>
 public class DeltaInstallContractTests

@@ -1,12 +1,12 @@
 {
-  "openapi": "3.1.1",
+  "openapi": "3.2.0",
   "info": {
     "title": "AtomUpdate.Api | v1",
     "version": "1.0.0"
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:5062/"
+      "url": "http://127.0.0.1:5062"
     }
   ],
   "paths": {
@@ -1279,6 +1279,74 @@
         }
       }
     },
+    "/api/manage/auth/setup/status": {
+      "get": {
+        "tags": [
+          "manage"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/manage/auth/setup": {
+      "post": {
+        "tags": [
+          "manage"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/manage/overview": {
       "get": {
         "tags": [
@@ -1506,6 +1574,82 @@
         }
       }
     },
+    "/api/manage/stats/checks": {
+      "get": {
+        "tags": [
+          "manage"
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "appId",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfCheckLogDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/manage/projects/{projectId}/apps/{appId}/upload": {
       "post": {
         "tags": [
@@ -1669,6 +1813,52 @@
         }
       }
     },
+    "/api/manage/settings": {
+      "get": {
+        "tags": [
+          "manage"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "manage"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{projectId}/apps/{appId}/releases": {
       "post": {
         "tags": [
@@ -1707,8 +1897,8 @@
           "required": true
         },
         "responses": {
-          "201": {
-            "description": "Created",
+          "200": {
+            "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
@@ -1717,8 +1907,8 @@
               }
             }
           },
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Created",
             "content": {
               "application/json": {
                 "schema": {
@@ -2480,6 +2670,12 @@
               "string"
             ]
           },
+          "actorName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "action": {
             "type": "string"
           },
@@ -2533,6 +2729,62 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "CheckLogDto": {
+        "required": [
+          "id",
+          "appKey",
+          "currentVersion",
+          "hasUpdate",
+          "eTagHit",
+          "checkedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "format": "int64"
+          },
+          "appKey": {
+            "type": "string"
+          },
+          "appName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "platform": {
+            "$ref": "#/components/schemas/UpdatePlatform"
+          },
+          "arch": {
+            "$ref": "#/components/schemas/UpdateArch"
+          },
+          "currentVersion": {
+            "type": "string"
+          },
+          "latestVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasUpdate": {
+            "type": "boolean"
+          },
+          "eTagHit": {
+            "type": "boolean"
+          },
+          "clientIp": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -3373,6 +3625,29 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AuditLogDto"
+            }
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "PagedResultOfCheckLogDto": {
+        "required": [
+          "items",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckLogDto"
             }
           },
           "total": {
@@ -4335,6 +4610,89 @@
           }
         }
       },
+      "SettingsDto": {
+        "required": [
+          "retentionDays",
+          "checkLogPerAppLimit"
+        ],
+        "type": "object",
+        "properties": {
+          "retentionDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "checkLogPerAppLimit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "SettingsUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "retentionDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "checkLogPerAppLimit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "SetupRequest": {
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "userName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "SetupStatusResponse": {
+        "type": "object",
+        "properties": {
+          "required": {
+            "type": "boolean"
+          }
+        }
+      },
       "StatsBatchResponse": {
         "type": "object",
         "properties": {
@@ -4593,6 +4951,12 @@
           "password": {
             "type": "string"
           },
+          "userName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "displayName": {
             "type": [
               "null",
@@ -4622,6 +4986,12 @@
           },
           "email": {
             "type": "string"
+          },
+          "userName": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "displayName": {
             "type": [
@@ -4669,6 +5039,12 @@
               "string"
             ]
           },
+          "userName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "isPlatformAdmin": {
             "type": [
               "null",
@@ -4701,13 +5077,13 @@
   },
   "tags": [
     {
-      "name": "ops"
-    },
-    {
       "name": "check"
     },
     {
       "name": "manage"
+    },
+    {
+      "name": "ops"
     },
     {
       "name": "releases"

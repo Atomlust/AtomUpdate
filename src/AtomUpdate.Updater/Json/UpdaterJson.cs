@@ -7,7 +7,7 @@ using AtomUpdate.Updater.State;
 
 namespace AtomUpdate.Updater.Json;
 
-/// <summary>更新器 JSON 源生成上下文（Q12 AOT：全部序列化走 source-gen，禁反射）。</summary>
+/// <summary>更新器 JSON 源生成上下文（AOT：全部序列化走 source-gen，禁反射）。</summary>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,

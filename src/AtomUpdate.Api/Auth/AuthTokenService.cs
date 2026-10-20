@@ -7,7 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace AtomUpdate.Api.Auth;
 
-/// <summary>管理后台用户 JWT 签发（HS256，与 AddAtomUpdateAuth 验签参数同源；M2 起启用）。
+/// <summary>管理后台用户 JWT 签发（HS256，与 AddAtomUpdateAuth 验签参数同源）。
 /// 签名密钥取自启动期解析的 JwtSigningKeyInfo（显式配置或自动生成密钥文件，docs/09）。</summary>
 public sealed class AuthTokenService(IConfiguration configuration, JwtSigningKeyInfo signingKey)
 {

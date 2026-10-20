@@ -10,7 +10,7 @@ using AtomUpdate.Internal;
 
 namespace AtomUpdate.Report;
 
-/// <summary>状态上报（04 §3.3/§3.14）：失败落盘 pending-reports，启动补报（Q15 离线兜底）。批量端点归 M6（当前服务端未实现时自动走离线队列）。stateRootOverride 供测试隔离，与 FileStateStore 一致。</summary>
+/// <summary>状态上报（04 §3.3/§3.14）：失败落盘 pending-reports，启动补报（离线兜底）。批量端点未实现时自动走离线队列。stateRootOverride 供测试隔离，与 FileStateStore 一致。</summary>
 public sealed class UpdateReporter(
     IHttpClientFactory httpClientFactory,
     AtomUpdateOptions options,

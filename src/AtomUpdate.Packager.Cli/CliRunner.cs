@@ -74,7 +74,7 @@ public static class CliRunner
         }
     }
 
-    /// <summary>错误码 → 退出码（docs/05 §14/§16）。</summary>
+    /// <summary>错误码 → 退出码（docs/05 §13/§14）。</summary>
     private static int MapCode(string code) => code switch
     {
         PackagerErrorCodes.SourceNotFound or

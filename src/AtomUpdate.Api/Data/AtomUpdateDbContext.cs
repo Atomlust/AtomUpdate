@@ -81,7 +81,7 @@ public class AtomUpdateDbContext : DbContext
 
         modelBuilder.Entity<User>(e =>
         {
-            // Email 全局唯一（跨租户），登录仅"邮箱+密码"（docs/07 §4.2）
+            // Email 全局唯一（跨租户），登录仅"邮箱+密码"
             e.HasIndex(x => x.Email).IsUnique();
             e.Property(x => x.Email).HasMaxLength(200);
             // UserName 可选登录名：全局唯一，NULL 不参与唯一约束（部分索引；列名带引号 PascalCase，pg/SQLite 语法一致）
@@ -107,7 +107,7 @@ public class AtomUpdateDbContext : DbContext
 
         modelBuilder.Entity<Release>(e =>
         {
-            // 平台在应用上、架构在资产上（07 Q24），故版本唯一性回到 (AppId, Version)
+            // 平台在应用上、架构在资产上，故版本唯一性回到 (AppId, Version)
             e.HasIndex(x => new { x.AppId, x.Version }).IsUnique();
             // check 热路径（按应用+状态聚合最新版本）：等值列后接版本号排序列，
             // 取代原 (AppId, Status)（其为此索引完整前缀），反向扫描命中 ORDER BY 版本号 DESC

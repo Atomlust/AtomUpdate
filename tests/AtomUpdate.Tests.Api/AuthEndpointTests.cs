@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace AtomUpdate.Tests.Api;
 
-/// <summary>登录与两级权限（docs/07 §4.2）：配置种子引导 / JWT 签发 / 统一错误口径 / 全局唯一 Email / 平台管理员收窄。</summary>
+/// <summary>登录与两级权限：配置种子引导 / JWT 签发 / 统一错误口径 / 全局唯一 Email / 平台管理员收窄。</summary>
 [Collection("api")]
 public class AuthEndpointTests(ApiFixture fixture)
 {

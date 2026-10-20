@@ -2,7 +2,7 @@ using AtomUpdate.Core.Enums;
 
 namespace AtomUpdate.Api.Data.Entities;
 
-/// <summary>版本（平台由所属应用决定、架构在各资产上，07 Q24）。VersionMajor/Minor/Patch 为解析冗余，供 SQL 排序。</summary>
+/// <summary>版本（平台由所属应用决定、架构在各资产上）。VersionMajor/Minor/Patch 为解析冗余，供 SQL 排序。</summary>
 public sealed class Release : ITenantScoped
 {
     public long Id { get; set; }

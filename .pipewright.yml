@@ -27,8 +27,8 @@ stages:
         name: 构建 Dev 镜像
         type: build_image
         config:
-          context: src/AtomUpdate.Web
-          dockerfile: Dockerfile
+          context: .
+          dockerfile: src/AtomUpdate.Web/Dockerfile
           tag: dev-${PIPEWRIGHT_COMMIT_SHA}   # Dev 标签前缀
 
       - id: job_push_dev
@@ -36,7 +36,7 @@ stages:
         type: push_image
         config:
           registry: https://docker.atomlust.com
-          imageName: atomupdate
+          imageName: atomupdate/web
           tag: dev-${PIPEWRIGHT_COMMIT_SHA}
 
   # ============================================================
@@ -71,8 +71,8 @@ stages:
         name: 构建 Release 镜像
         type: build_image
         config:
-          context: src/AtomUpdate.Web
-          dockerfile: Dockerfile
+          context: .
+          dockerfile: src/AtomUpdate.Web/Dockerfile
           tag: release-${PIPEWRIGHT_COMMIT_SHA}   # Release 标签前缀
 
       - id: job_push_release
@@ -80,7 +80,7 @@ stages:
         type: push_image
         config:
           registry: https://docker.atomlust.com
-          imageName: atomupdate
+          imageName: atomupdate/web
           tag: release-${PIPEWRIGHT_COMMIT_SHA}
 
   # ============================================================

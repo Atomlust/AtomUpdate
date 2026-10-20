@@ -1,6 +1,6 @@
 namespace AtomUpdate.Packager.Cli;
 
-/// <summary>解析后的命令行（docs/05 §16）：命令名 + 选项多值映射（--arch 可重复）+ 解析错误。</summary>
+/// <summary>解析后的命令行（docs/05 §13）：命令名 + 选项多值映射（--arch 可重复）+ 解析错误。</summary>
 public sealed class ParsedCli
 {
     public required string? Command { get; init; }

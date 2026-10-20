@@ -1,6 +1,6 @@
 namespace AtomUpdate.Packager.Core;
 
-/// <summary>打包工具工作目录布局（docs/05 §9/§10）：{work}/drafts（packs 由打包输出目录决定）。</summary>
+/// <summary>打包工具工作目录布局（docs/05 §12/§16）：{work}/drafts（packs 由打包输出目录决定）。</summary>
 public sealed class PackagerPaths
 {
     public PackagerPaths(string workDirectory)

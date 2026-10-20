@@ -7,7 +7,7 @@
 #   pwsh tools/deploy-web.ps1                                        # 默认：webnet 网络，宿主 8081 端口仅回环
 #   pwsh tools/deploy-web.ps1 -Image docker.atomlust.com/atomupdate/web:1.0.0
 #   pwsh tools/deploy-web.ps1 -Port 8090 -Public                     # 端口绑定 0.0.0.0（直接对外）
-#   pwsh tools/deploy-web.ps1 -AppEnv @('BOOTSTRAP_PASSWORD=xxx')    # 预配管理员跳过设置向导
+#   pwsh tools/deploy-web.ps1 -AppEnv @('Auth__Bootstrap__Password=xxx')    # 预配管理员跳过设置向导（裸 docker run 用双下划线配置键）
 #   pwsh tools/deploy-web.ps1 -DataVolume D:\atomupdate\data         # bind mount 变体（宿主目录，注意 APP_UID=1654 写权限）
 [CmdletBinding()]
 param(

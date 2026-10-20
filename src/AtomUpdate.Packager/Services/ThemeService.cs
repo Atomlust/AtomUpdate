@@ -4,7 +4,7 @@ using AtomUpdate.Packager.Localization;
 
 namespace AtomUpdate.Packager.Services;
 
-/// <summary>亮暗主题切换（docs/05 §13 MVP 结构）：直接改 Application.RequestedThemeVariant。</summary>
+/// <summary>亮暗主题切换（docs/05 §4 MVP 结构）：直接改 Application.RequestedThemeVariant。</summary>
 public static class ThemeService
 {
     public static ThemeVariant Current { get; private set; } = ThemeVariant.Default;

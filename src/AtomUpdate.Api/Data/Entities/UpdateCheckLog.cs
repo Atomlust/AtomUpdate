@@ -2,7 +2,7 @@ using AtomUpdate.Core.Enums;
 
 namespace AtomUpdate.Api.Data.Entities;
 
-/// <summary>检查日志（后台批量写；按月分区留待规模期，M1 普通表）。</summary>
+/// <summary>检查日志（后台批量写；按月分区留待规模期，当前普通表）。</summary>
 public sealed class UpdateCheckLog : ITenantScoped
 {
     public long Id { get; set; }

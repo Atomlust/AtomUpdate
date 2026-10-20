@@ -4,7 +4,7 @@ using AtomUpdate.Updater.Logging;
 
 namespace AtomUpdate.Updater.Locking;
 
-/// <summary>全局互斥（04 §4.11，Q14）：Windows 命名互斥体 Global\AtomUpdate.Updater.{appId}；
+/// <summary>全局互斥（04 §4.11）：Windows 命名互斥体 Global\AtomUpdate.Updater.{appId}；
 /// macOS/Linux /tmp/atomupdate.updater.{appId}.lock 文件锁 + PID 校验（死进程残留锁可接管）。
 /// 获取失败 → 0x1001（不提示用户，只写日志）。</summary>
 public sealed class GlobalMutex : IDisposable

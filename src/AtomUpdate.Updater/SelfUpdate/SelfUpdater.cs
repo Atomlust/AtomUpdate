@@ -8,8 +8,8 @@ using AtomUpdate.Updater.Verification;
 
 namespace AtomUpdate.Updater.SelfUpdate;
 
-/// <summary>自升级检查与交接（04 §4.12，Q16）：checkBeforeInstall 失败（断网/不可达）记日志跳过，继续原任务。
-/// 清单 URL 为 MVP 内部约定（Q13 独立分发契约二阶段定）；未配置 manifestUrl 时跳过自升级。</summary>
+/// <summary>自升级检查与交接（04 §4.12）：checkBeforeInstall 失败（断网/不可达）记日志跳过，继续原任务。
+/// 清单 URL 为 MVP 内部约定（独立分发契约二阶段定）；未配置 manifestUrl 时跳过自升级。</summary>
 public sealed class SelfUpdater(UpdaterTaskFile task, UpdaterLog log)
 {
     public static string CurrentVersion =>

@@ -204,7 +204,7 @@ internal static class ReleaseEndpoints
             return Results.Json(new ErrorResponse
             {
                 Code = ErrorCodes.ReleaseWithdrawn,
-                Message = "版本已撤回，禁止同版本重新发布（Q11），请使用新构建号重发"
+                Message = "版本已撤回，禁止同版本重新发布，请使用新构建号重发"
             }, statusCode: StatusCodes.Status409Conflict);
         }
 
@@ -282,7 +282,7 @@ internal static class ReleaseEndpoints
             return ManageHelpers.NotFound(ErrorCodes.ReleaseNotFound, "版本不存在");
         }
 
-        // 已发布版本不可编辑（变更走新构建号）；已撤回版本禁止任何变动（Q11）
+        // 已发布版本不可编辑（变更走新构建号）；已撤回版本禁止任何变动
         if (release.Status is not (ReleaseStatus.Draft or ReleaseStatus.Prerelease))
         {
             return Results.Json(new ErrorResponse
@@ -468,7 +468,7 @@ internal static class ReleaseEndpoints
         var query = db.Releases.AsNoTracking().Where(r => r.AppId == app.Id);
         if (archFilter is not null)
         {
-            // 架构在各资产上（07 Q24）：筛"有该架构包的版本"
+            // 架构在各资产上：筛"有该架构包的版本"
             query = query.Where(r => db.ReleaseAssets.Any(a => a.ReleaseId == r.Id && a.Arch == archFilter));
         }
 
@@ -543,7 +543,7 @@ internal static class ReleaseEndpoints
         CancellationToken ct) =>
         db.Releases.FirstOrDefaultAsync(r => r.AppId == appId && r.Version == version, ct);
 
-    /// <summary>同版本已存在：资产逐项一致 → 幂等 200；否则 409（Q11 禁止同版本重传）。</summary>
+    /// <summary>同版本已存在：资产逐项一致 → 幂等 200；否则 409（禁止同版本重传）。</summary>
     private static async Task<IResult> RespondForExistingAsync(AtomUpdateDbContext db, Release existing,
         IReadOnlyList<NormalizedAsset> assets, CancellationToken ct)
     {
@@ -552,7 +552,7 @@ internal static class ReleaseEndpoints
             return Results.Json(new ErrorResponse
             {
                 Code = ErrorCodes.ReleaseExists,
-                Message = $"版本 {existing.Version} 已撤回，禁止同版本重传（Q11），请使用新构建号"
+                Message = $"版本 {existing.Version} 已撤回，禁止同版本重传，请使用新构建号"
             }, statusCode: StatusCodes.Status409Conflict);
         }
 
@@ -569,7 +569,7 @@ internal static class ReleaseEndpoints
             return Results.Json(new ErrorResponse
             {
                 Code = ErrorCodes.ReleaseExists,
-                Message = $"版本 {existing.Version} 已存在且资产不一致，禁止同版本重传（Q11），请使用新构建号"
+                Message = $"版本 {existing.Version} 已存在且资产不一致，禁止同版本重传，请使用新构建号"
             }, statusCode: StatusCodes.Status409Conflict);
         }
 

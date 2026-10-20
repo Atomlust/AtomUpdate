@@ -7,7 +7,7 @@ using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Api 与 Web 单进程托管（docs/02 §2 决策 4 / Q8）；ContentRoot 供 JWT 密钥文件相对路径解析
+// Api 与 Web 单进程托管（docs/02 §2 决策 4）；ContentRoot 供 JWT 密钥文件相对路径解析
 builder.Services.AddAtomUpdateApi(builder.Configuration, builder.Environment.ContentRootPath);
 
 builder.Services.AddAtomBlazorComponents();

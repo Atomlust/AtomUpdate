@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AtomUpdate.Tests.Api;
 
-/// <summary>manage 统计读端点（M6）：安装汇总（指纹去重）/ 下载汇总 / 检查汇总（304·策略命中）/ 分页与关键字 / 租户隔离。
+/// <summary>manage 统计读端点：安装汇总（指纹去重）/ 下载汇总 / 检查汇总（304·策略命中）/ 分页与关键字 / 租户隔离。
 /// 数据经真实上报端点与 /api/check 种子化，异步日志等待落库后再断言。</summary>
 [Collection("api")]
 public class StatsEndpointTests(ApiFixture fixture)

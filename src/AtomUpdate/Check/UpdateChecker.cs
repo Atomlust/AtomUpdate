@@ -175,7 +175,7 @@ public static class AtomUpdateHttp
 {
     public const string ClientName = "AtomUpdate";
 
-    /// <summary>下载专用客户端：超时无限（由无进展超时控制，Q20）。</summary>
+    /// <summary>下载专用客户端：超时无限（由无进展超时控制）。</summary>
     public const string DownloadClientName = "AtomUpdate.Download";
 
     /// <summary>上报专用客户端：15 秒超时。</summary>

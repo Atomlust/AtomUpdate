@@ -2,7 +2,7 @@ using AtomUpdate.Core.Enums;
 
 namespace AtomUpdate.Api.Data.Entities;
 
-/// <summary>版本 × 通道 的发布关系（M2.5：环境已移除）。</summary>
+/// <summary>版本 × 通道 的发布关系。</summary>
 public sealed class ReleaseChannel
 {
     public long ReleaseId { get; set; }

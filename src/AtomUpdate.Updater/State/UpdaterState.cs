@@ -1,6 +1,6 @@
 namespace AtomUpdate.Updater.State;
 
-/// <summary>更新器状态文件（04 §4.4，state/{appId}/updater-state.json）。SDK 启动时读取未回传状态补报（M4 集成）。</summary>
+/// <summary>更新器状态文件（04 §4.4，state/{appId}/updater-state.json）。SDK 启动时读取未回传状态补报。</summary>
 public sealed class UpdaterState
 {
     public string? InstallationId { get; set; }

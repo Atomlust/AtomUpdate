@@ -14,7 +14,7 @@ public sealed class App : ITenantScoped
     public string Name { get; set; } = null!;
     public AppType Type { get; set; } = AppType.App;
 
-    /// <summary>应用所属操作系统（一个 appId 只服务一个平台，07 Q24）；创建后不可改。</summary>
+    /// <summary>应用所属操作系统（一个 appId 只服务一个平台）；创建后不可改。</summary>
     public UpdatePlatform Platform { get; set; }
 
     public EntityStatus Status { get; set; } = EntityStatus.Active;

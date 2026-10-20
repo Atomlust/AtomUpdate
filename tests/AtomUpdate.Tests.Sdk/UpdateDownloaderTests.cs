@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AtomUpdate.Tests.Sdk;
 
-/// <summary>下载器：SHA256 校验/断点续传/无进展超时/限速/重试（W3 出口，Q20）。</summary>
+/// <summary>下载器：SHA256 校验/断点续传/无进展超时/限速/重试。</summary>
 public class UpdateDownloaderTests : IDisposable
 {
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "atomupdate-tests", Guid.NewGuid().ToString("N"));

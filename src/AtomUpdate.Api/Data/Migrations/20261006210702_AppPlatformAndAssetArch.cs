@@ -10,7 +10,7 @@ namespace AtomUpdate.Api.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // 07 Q24：平台从版本上移到应用，架构从版本下移到资产。
+            // 平台从版本上移到应用，架构从版本下移到资产。
             // 顺序必须是「先加列 + 回填，再删旧列」，反过来会丢掉回填来源。
             migrationBuilder.AddColumn<string>(
                 name: "Arch",

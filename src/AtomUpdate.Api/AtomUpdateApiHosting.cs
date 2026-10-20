@@ -121,7 +121,7 @@ public static class AtomUpdateApiHosting
             }
         }
 
-        // 首个平台管理员引导：用户表为空且 Auth:Bootstrap 已配置时幂等种子（docs/07 §4.2）
+        // 首个平台管理员引导：用户表为空且 Auth:Bootstrap 已配置时幂等种子
         await AuthBootstrapSeeder.RunAsync(app.Services);
 
         app.UseAuthentication();

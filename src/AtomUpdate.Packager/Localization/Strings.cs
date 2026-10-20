@@ -1,13 +1,13 @@
 namespace AtomUpdate.Packager.Localization;
 
-/// <summary>UI 语言（docs/05 §13）：中英双语，MVP 内置字典，不引资源框架。</summary>
+/// <summary>UI 语言（docs/05 §4）：中英双语，MVP 内置字典，不引资源框架。</summary>
 public enum UiLanguage
 {
     Zh,
     En
 }
 
-/// <summary>中英文字典（docs/05 §13）：键稳定，XAML 以 x:Static 引用；切换语言后重建主窗口生效。</summary>
+/// <summary>中英文字典（docs/05 §4）：键稳定，XAML 以 x:Static 引用；切换语言后重建主窗口生效。</summary>
 public static class Strings
 {
     public static UiLanguage Language { get; set; } = UiLanguage.Zh;

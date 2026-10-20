@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace AtomUpdate.Updater.Configuration;
 
 /// <summary>更新器配置节（04 §4.13）。五层合并：内置默认 → 安装目录 updater.default.json → --config → ATOMUPDATE_UPDATER_CONFIG 环境变量指向的文件 → 命令行。
-/// verification 节仅取前两层（防同机攻击者经运行参数注入降级校验，2026-10-06 确认）。</summary>
+/// verification 节仅取前两层（防同机攻击者经运行参数注入降级校验）。</summary>
 public sealed class UpdaterSettings
 {
     public UpdaterSection Updater { get; set; } = new();
@@ -35,7 +35,7 @@ public sealed class UpdaterSection
 
     public int LogRetentionDays { get; set; } = 7;
 
-    /// <summary>按 appId 命名互斥（Q14）；false 关闭互斥（测试/调试用）。</summary>
+    /// <summary>按 appId 命名互斥；false 关闭互斥（测试/调试用）。</summary>
     public bool GlobalMutex { get; set; } = true;
 
     /// <summary>互斥等待秒数（0 = 不等待，直接 0x1001）。</summary>
@@ -63,10 +63,10 @@ public sealed class SelfUpdateSection
 
     public string? ServerUrl { get; set; }
 
-    /// <summary>安装前检查自升级；失败（断网/Api 不可达）记日志跳过，继续原任务（Q16）。</summary>
+    /// <summary>安装前检查自升级；失败（断网/Api 不可达）记日志跳过，继续原任务。</summary>
     public bool CheckBeforeInstall { get; set; } = true;
 
-    /// <summary>自升级清单地址（MVP 内部约定：GET 返回 {version,url,sha256}；独立分发契约二阶段再定，Q13）。空 = 跳过自升级检查。</summary>
+    /// <summary>自升级清单地址（MVP 内部约定：GET 返回 {version,url,sha256}；独立分发契约二阶段再定）。空 = 跳过自升级检查。</summary>
     public string? ManifestUrl { get; set; }
 }
 
@@ -136,7 +136,7 @@ public sealed class RestartSection
 
     public int DelayMs { get; set; } = 500;
 
-    /// <summary>等待主程序退出的秒数（04 §5.2，超时强制继续）。</summary>
+    /// <summary>等待主程序退出的毫秒数（04 §5.2，超时强制继续）。</summary>
     public int WaitForExitMs { get; set; } = 5000;
 }
 

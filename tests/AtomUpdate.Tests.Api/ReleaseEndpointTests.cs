@@ -7,7 +7,7 @@ using AtomUpdate.Core.Models.Manage;
 
 namespace AtomUpdate.Tests.Api;
 
-/// <summary>Release 生命周期（03 §3.4 / Q11）：create 幂等 / publish / unpublish / 鉴权范围 / 过滤。</summary>
+/// <summary>Release 生命周期（03 §3.4）：create 幂等 / publish / unpublish / 鉴权范围 / 过滤。</summary>
 [Collection("api")]
 public class ReleaseEndpointTests(ApiFixture fixture)
 {
@@ -221,7 +221,7 @@ public class ReleaseEndpointTests(ApiFixture fixture)
 
         var path = ApiFixture.ReleasePath(scenario.ProjectId, scenario.AppId);
 
-        // 架构过滤 = "有该架构包的版本"（07 Q24：架构在资产上，不在版本上）
+        // 架构过滤 = "有该架构包的版本"（架构在资产上，不在版本上）
         var arm = (await fixture.SendJsonAsync<PagedResult<ReleaseDto>>(HttpMethod.Get,
                 $"{path}?arch=arm64", bearer: scenario.AdminToken))
             .Expect(HttpStatusCode.OK);
@@ -268,7 +268,7 @@ public class ReleaseEndpointTests(ApiFixture fixture)
 
         var first = (await fixture.UnpublishAsync(scenario.AdminToken, scenario.ProjectId, scenario.AppId, release.Id))
             .Expect(HttpStatusCode.OK).Data;
-        var channelRow = Assert.Single(first.Channels); // 发布矩阵 = 版本 × 通道（M2.5）
+        var channelRow = Assert.Single(first.Channels); // 发布矩阵 = 版本 × 通道
         Assert.Equal(ReleaseChannelStatus.Withdrawn, channelRow.Status);
 
         var second = (await fixture.UnpublishAsync(scenario.AdminToken, scenario.ProjectId, scenario.AppId, release.Id))

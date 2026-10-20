@@ -9,7 +9,7 @@ using AtomUpdate.State;
 
 namespace AtomUpdate.Install;
 
-/// <summary>更新器启动配置（04 §5.1 临时配置文件，restrictive ACL/清理由更新器与 M4 细化）。
+/// <summary>更新器启动配置（04 §5.1 临时配置文件，restrictive ACL/清理由更新器细化）。
 /// 字段名与更新器 UpdaterTaskFile 顶层运行字段一一对应（camelCase）。</summary>
 public sealed class UpdaterLaunchConfig
 {
@@ -161,7 +161,7 @@ public sealed class UpdateInstaller(
             AppId = options.AppId,
             ProjectKey = options.ProjectKey,
             Platform = platformInfo.Platform.ToString().ToLowerInvariant(),
-            // 架构以包资产为准（07 Q25）：arm64 设备回落 x64 包时，验签内容须用包架构；包未带架构回落设备架构
+            // 架构以包资产为准：arm64 设备回落 x64 包时，验签内容须用包架构；包未带架构回落设备架构
             Arch = package?.Arch is { } arch
                 ? arch.ToString().ToLowerInvariant()
                 : platformInfo.Arch.ToString().ToLowerInvariant(),

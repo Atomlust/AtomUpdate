@@ -122,7 +122,7 @@ public static class AtomUpdateServiceCollectionExtensions
                 options.Network.UserAgent ?? BuildDefaultUserAgent(sp));
         });
 
-        // 下载：超时无限（由无进展超时控制，Q20）；代理仅显式配置时启用
+        // 下载：超时无限（由无进展超时控制）；代理仅显式配置时启用
         services.AddHttpClient(AtomUpdateHttp.DownloadClientName, (sp, client) =>
         {
             var options = sp.GetRequiredService<IOptions<AtomUpdateOptions>>().Value;

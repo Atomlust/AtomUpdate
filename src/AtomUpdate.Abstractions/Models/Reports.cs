@@ -67,7 +67,7 @@ public sealed class DownloadReport
 
     public required string ToVersion { get; init; }
 
-    /// <summary>包类型（full/delta；M6 起上报，供下载统计区分增量/全量；旧客户端缺省为空）。</summary>
+    /// <summary>包类型（full/delta；供下载统计区分增量/全量；旧客户端缺省为空）。</summary>
     public AssetKind? Kind { get; init; }
 
     public bool Success { get; init; }

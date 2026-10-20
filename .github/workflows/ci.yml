@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 10.0.x
+          global-json-file: global.json
       - name: Restore tools
         run: dotnet tool restore
       - name: Restore
@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 10.0.x
+          global-json-file: global.json
       - name: Publish
         run: dotnet publish src/AtomUpdate.Updater/AtomUpdate.Updater.csproj -c Release -r ${{ matrix.rid }} -p:PublishAot=true -o artifacts/updater/${{ matrix.rid }}/native
       - uses: actions/upload-artifact@v4
@@ -67,7 +67,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 10.0.x
+          global-json-file: global.json
       - uses: actions/download-artifact@v4
         with:
           path: artifacts/updater

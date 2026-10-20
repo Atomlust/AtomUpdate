@@ -19,7 +19,7 @@ using NuGet.Versioning;
 
 namespace AtomUpdate.Packager.ViewModels;
 
-/// <summary>四步向导状态机（docs/05 §12/§13）：目标 → 打包 → 日志 → 发布；
+/// <summary>四步向导状态机（docs/05 §4/§12）：目标 → 打包 → 日志 → 发布；
 /// 步间校验、草稿自动保存、后台执行 PublishOrchestrator（IProgress 回 UI 线程，取消在阶段边界生效）。</summary>
 public partial class WizardViewModel : ViewModelBase
 {

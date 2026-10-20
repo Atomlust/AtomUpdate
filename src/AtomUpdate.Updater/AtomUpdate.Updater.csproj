@@ -4,7 +4,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net11.0</TargetFramework>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <!-- Native AOT 单文件（Q12）；IsAotCompatible 让日常构建也跑裁剪/AOT 分析器 -->
+    <!-- Native AOT 单文件；IsAotCompatible 让日常构建也跑裁剪/AOT 分析器 -->
     <PublishAot>true</PublishAot>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>

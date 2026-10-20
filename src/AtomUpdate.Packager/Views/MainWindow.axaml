@@ -17,7 +17,7 @@
   </Design.DataContext>
 
   <DockPanel>
-    <!-- 语言/主题（docs/05 §13 MVP 结构） -->
+    <!-- 语言/主题（docs/05 §4 MVP 结构） -->
     <Menu DockPanel.Dock="Top">
       <MenuItem Header="{ext:Loc Language}">
         <MenuItem Header="中文" Click="LanguageZhClick" />

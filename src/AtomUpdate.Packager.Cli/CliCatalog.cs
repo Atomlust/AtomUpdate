@@ -1,6 +1,6 @@
 namespace AtomUpdate.Packager.Cli;
 
-/// <summary>命令/选项目录（docs/05 §16）：kebab-case 白名单，未知参数报错；布尔标志不消费下一 token。</summary>
+/// <summary>命令/选项目录（docs/05 §13）：kebab-case 白名单，未知参数报错；布尔标志不消费下一 token。</summary>
 public static class CliCatalog
 {
     public static readonly string[] Commands = ["publish", "pack", "upload", "list"];
@@ -50,7 +50,7 @@ public static class CliCatalog
         ["publish"] = PublishFlags
     };
 
-    // CI secrets 环境变量回退（docs/05 §16）：密钥绝不落日志
+    // CI secrets 环境变量回退（docs/05 §13）：密钥绝不落日志
     public const string EnvApiUrl = "ATOMUPDATE_PACKAGER_API_URL";
     public const string EnvProject = "ATOMUPDATE_PACKAGER_PROJECT";
     public const string EnvApp = "ATOMUPDATE_PACKAGER_APP";

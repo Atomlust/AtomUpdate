@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace AtomUpdate.Core.Models.Manage;
 
-/// <summary>租户概览（M2 W4 轻量版，深化归 M6）。</summary>
+/// <summary>租户概览（轻量版）。</summary>
 public sealed class OverviewDto
 {
     public required int Projects { get; init; }

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AtomUpdate.Tests.Sdk;
 
-/// <summary>策略缓存与四层合并（04 §3.8，W1 出口）。</summary>
+/// <summary>策略缓存与四层合并（04 §3.8）。</summary>
 public class PolicyProviderTests : IDisposable
 {
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "atomupdate-tests", Guid.NewGuid().ToString("N"));

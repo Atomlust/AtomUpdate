@@ -15,7 +15,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AtomUpdate.Tests.Sdk;
 
-/// <summary>SDK↔更新器集成（06 M4-W4）：内嵌更新器释放、启动配置字段、更新器状态回读补报。</summary>
+/// <summary>SDK↔更新器集成：内嵌更新器释放、启动配置字段、更新器状态回读补报。</summary>
 public class UpdaterIntegrationTests : IDisposable
 {
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "atomupdate-tests", Guid.NewGuid().ToString("N"));
@@ -163,7 +163,7 @@ public class UpdaterIntegrationTests : IDisposable
         Assert.Equal(options.AppId, config.AppId);
         Assert.Equal(options.ProjectKey, config.ProjectKey);
         Assert.Equal(platform.Platform.ToString().ToLowerInvariant(), config.Platform);
-        // 包架构优先（07 Q25）：包带 Arch=X64 时启动配置用包架构
+        // 包架构优先：包带 Arch=X64 时启动配置用包架构
         Assert.Equal("x64", config.Arch);
         Assert.Equal("/S", config.SilentArgs);
         Assert.Equal("/DIR=custom", config.InstallArgs);
@@ -201,7 +201,7 @@ public class UpdaterIntegrationTests : IDisposable
     [Fact]
     public void CreateLaunchConfig_Arch_PackageArchPreferred_DeviceArchFallback()
     {
-        // arm64 设备回落 x64 包：启动配置须带包架构（07 Q25），否则更新器按设备架构验签必失败
+        // arm64 设备回落 x64 包：启动配置须带包架构，否则更新器按设备架构验签必失败
         var arm64Platform = new FakePlatformInfo(UpdatePlatform.Windows, UpdateArch.Arm64);
         var withPackage = new InstallContext
         {

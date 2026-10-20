@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AtomUpdate.Api.Endpoints.Reports;
 
-/// <summary>公开上报端点（M6）：install/download/report/batch 无需鉴权；租户按请求体 projectKey+appId 反查（与 check 同机制）；
+/// <summary>公开上报端点：install/download/report/batch 无需鉴权；租户按请求体 projectKey+appId 反查（与 check 同机制）；
 /// check 事件 batch 不双计；校验失败宁丢不阻（不泄露应用存在性）。</summary>
 internal static class ReportEndpoints
 {

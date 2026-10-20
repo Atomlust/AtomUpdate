@@ -323,7 +323,7 @@ public sealed class AtomUpdater(
         SetState(UpdateState.RestartPending);
         InstallCompleted?.Invoke(this, new InstallCompletedEventArgs(CurrentUpdate));
 
-        // 安装上报（失败自动落盘，更新器回执由 M4 状态文件补报）
+        // 安装上报（失败自动落盘，更新器回执由状态文件补报）
         await reporter.ReportInstallAsync(new InstallReport
         {
             ProjectKey = options.ProjectKey,

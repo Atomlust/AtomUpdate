@@ -1,6 +1,6 @@
 namespace AtomUpdate.Packager.Core.Storage;
 
-/// <summary>瞬态失败重试（docs/05 §10）：最多 3 次尝试，指数退避 1s/2s/4s；
+/// <summary>瞬态失败重试（docs/05 §9）：最多 3 次尝试，指数退避 1s/2s/4s；
 /// 取消与非瞬态异常立即抛出。</summary>
 public static class RetryExecutor
 {

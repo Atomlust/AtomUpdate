@@ -7,7 +7,7 @@ using AtomUpdate.Packager.Core.Publishing;
 
 namespace AtomUpdate.Packager.Cli.Commands;
 
-/// <summary>publish 子命令（docs/05 §12/§16）：PublishOrchestrator 全链路；--publish + --channels 推送后立即发布。</summary>
+/// <summary>publish 子命令（docs/05 §5/§13）：PublishOrchestrator 全链路；--publish + --channels 推送后立即发布。</summary>
 internal static class PublishCommand
 {
     public static async Task<int> ExecuteAsync(ParsedCli cli, TextWriter output, CancellationToken cancellationToken)
@@ -128,7 +128,7 @@ internal static class PublishCommand
         }
         catch (PackagerException ex) when (lastStage == PublishStage.Release)
         {
-            // 版本已创建成功，仅通道发布失败 → 退出码 7（docs/05 §16）
+            // 版本已创建成功，仅通道发布失败 → 退出码 7（docs/05 §13）
             throw new CliPublishStageException($"通道发布失败（版本 {version} 已创建）：{ex.Message}", ex);
         }
 

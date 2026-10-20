@@ -12,7 +12,7 @@ public sealed class ReleaseAsset : ITenantScoped
     /// <summary>delta 起点版本；full 为空。</summary>
     public string? FromVersion { get; set; }
 
-    /// <summary>该包适用的 CPU 架构（平台在应用上，07 Q24）。</summary>
+    /// <summary>该包适用的 CPU 架构（平台在应用上）。</summary>
     public UpdateArch Arch { get; set; }
 
     public PackageType PackageType { get; set; }

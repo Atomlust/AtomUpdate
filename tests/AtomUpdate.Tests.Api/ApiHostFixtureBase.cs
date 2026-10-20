@@ -63,7 +63,7 @@ public abstract class ApiHostFixtureBase : WebApplicationFactory<Program>
         return $"{header}.{payload}.{signature}";
     }
 
-    /// <summary>非平台管理员令牌（M2 两级权限模型下的普通租户用户）。</summary>
+    /// <summary>非平台管理员令牌（两级权限模型下的普通租户用户）。</summary>
     public string MintUserToken(long tenantId, string subject = "tenant-user") =>
         MintToken(tenantId, subject, platformAdmin: false);
 
@@ -140,7 +140,7 @@ public abstract class ApiHostFixtureBase : WebApplicationFactory<Program>
         Sha256 = sha256
     };
 
-    /// <summary>版本请求：平台属于应用（07 Q24），架构在每个资产上，这里只给版本号与包。</summary>
+    /// <summary>版本请求：平台属于应用，架构在每个资产上，这里只给版本号与包。</summary>
     public static ReleaseCreateRequest WindowsRelease(string version, params ReleaseAssetInput[] assets) => new()
     {
         Version = version,
@@ -165,7 +165,7 @@ public abstract class ApiHostFixtureBase : WebApplicationFactory<Program>
         return result.Expect(HttpStatusCode.Created).Data;
     }
 
-    /// <summary>平台是应用的属性（07 Q24）：一个 appId 只服务一个平台，应用类型跟随平台取值。</summary>
+    /// <summary>平台是应用的属性：一个 appId 只服务一个平台，应用类型跟随平台取值。</summary>
     public async Task<AppDto> CreateAppAsync(string token, long projectId, string appId,
         UpdatePlatform platform = UpdatePlatform.Windows)
     {

@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace AtomUpdate.Core.Models.Manage;
 
-/// <summary>安装实例列表项（M6 统计）。</summary>
+/// <summary>安装实例列表项。</summary>
 public sealed class InstallationDto
 {
     [JsonConverter(typeof(LongIdJsonConverter))]
@@ -18,7 +18,7 @@ public sealed class InstallationDto
     public required DateTimeOffset LastSeenAt { get; init; }
 }
 
-/// <summary>安装汇总（M6 统计）：含机器指纹去重口径。</summary>
+/// <summary>安装汇总：含机器指纹去重口径。</summary>
 public sealed class InstallationSummaryDto
 {
     /// <summary>安装实例总数（按 installationId）。</summary>
@@ -55,7 +55,7 @@ public sealed class ChannelCountDto
     public required int Count { get; init; }
 }
 
-/// <summary>下载汇总（M6 统计）。</summary>
+/// <summary>下载汇总。</summary>
 public sealed class DownloadSummaryDto
 {
     public required int Downloads24h { get; init; }
@@ -74,7 +74,7 @@ public sealed class DownloadSummaryDto
     public required double DeltaShare7d { get; init; }
 }
 
-/// <summary>检查汇总（M6 统计）：304/缓存命中口径。</summary>
+/// <summary>检查汇总：304/缓存命中口径。</summary>
 public sealed class CheckSummaryDto
 {
     public required int Checks24h { get; init; }

@@ -11,7 +11,7 @@ public sealed class AppCreateRequestValidator : AbstractValidator<AppCreateReque
             .WithMessage("appId 只能包含字母、数字、点、下划线和连字符");
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Type).IsInEnum();
-        RuleFor(x => x.Platform).NotNull().WithMessage("platform 必填（一个应用只服务一个平台，07 Q24）")
+        RuleFor(x => x.Platform).NotNull().WithMessage("platform 必填（一个应用只服务一个平台）")
             .IsInEnum().WithMessage("platform 取值非法");
     }
 }

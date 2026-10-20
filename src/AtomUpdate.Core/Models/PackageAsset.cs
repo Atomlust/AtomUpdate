@@ -7,7 +7,7 @@ public sealed class PackageAsset
     public AssetKind? Type { get; init; }
     public required PackageType PackageType { get; init; }
 
-    /// <summary>包目标架构（07 Q25）：验签内容含架构，arm64 设备回落 x64 包时必须用包架构而非设备架构。</summary>
+    /// <summary>包目标架构：验签内容含架构，arm64 设备回落 x64 包时必须用包架构而非设备架构。</summary>
     public required UpdateArch Arch { get; init; }
     public string? FromVersion { get; init; }
     public required string Url { get; init; }

@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AtomUpdate.Tests.Sdk;
 
-/// <summary>门面状态机与事件（04 §3.2~§3.6，W2 出口：全状态机路径与事件单测）。</summary>
+/// <summary>门面状态机与事件（04 §3.2~§3.6：全状态机路径与事件单测）。</summary>
 public class AtomUpdaterFacadeTests : IDisposable
 {
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "atomupdate-tests", Guid.NewGuid().ToString("N"));

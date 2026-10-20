@@ -6,8 +6,8 @@ using AtomUpdate.Updater.Logging;
 namespace AtomUpdate.Updater.Verification;
 
 /// <summary>二次校验（04 §4.5/§5.1/05 §8）：SHA256 强制（提供即校验）；签名按 verification.requireSignature 可选启用。
-/// 签名内容 = UTF8("{sha256}|{toVersion}|{platform}|{arch}")（各字段小写，M4/M5 实现口径）。算法：RSA PKCS#1 v1.5 + SHA256。
-/// 公钥集仅信任内置默认与安装目录 updater.default.json（防同机注入，2026-10-06 确认）。</summary>
+/// 签名内容 = UTF8("{sha256}|{toVersion}|{platform}|{arch}")（各字段小写）。算法：RSA PKCS#1 v1.5 + SHA256。
+/// 公钥集仅信任内置默认与安装目录 updater.default.json（防同机注入）。</summary>
 public static class PackageVerifier
 {
     public static string ComputeSha256(string path)

@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AtomUpdate.Api.Endpoints.Manage;
 
-/// <summary>概览与审计（M2 W4）：读接口，租户上下文由查询过滤器隔离。
+/// <summary>概览与审计：读接口，租户上下文由查询过滤器隔离。
 /// 概览/统计汇总为重聚合查询，经 IReadCache 缓存 30s（键含租户与 appId 维度），写路径变更端点主动失效。</summary>
 internal static class InsightEndpoints
 {
@@ -94,7 +94,7 @@ internal static class InsightEndpoints
         });
     }
 
-    // ─── M6 统计端点 ─────────────────────────────────────
+    // ─── 统计端点 ─────────────────────────────────────
 
     private static async Task<IResult> InstallationsAsync(AtomUpdateDbContext db, long? appId, string? keyword,
         int? page, int? pageSize, CancellationToken ct)

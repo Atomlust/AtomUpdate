@@ -48,7 +48,7 @@ public sealed record ReleaseScope(long ProjectId, long AppId)
         return release is null ? (null, $"未找到版本 {releaseId}，或它不属于当前项目/应用") : (release, null);
     }
 
-    /// <summary>平台是应用属性（07 Q24），版本子页面只读展示它，取不到时返回 null 由页面降级显示。</summary>
+    /// <summary>平台是应用属性，版本子页面只读展示它，取不到时返回 null 由页面降级显示。</summary>
     public async Task<UpdatePlatform?> PlatformAsync(ApiClient api)
     {
         var result = await api.GetAsync<AppDto>($"{ApiRoutes.ManagePrefix}/apps/{AppId}");

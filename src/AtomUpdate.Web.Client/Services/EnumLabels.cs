@@ -4,7 +4,7 @@ using AtomBlazor;
 
 namespace AtomUpdate.Web.Client.Services;
 
-/// <summary>枚举的展示文案：平台来自应用、架构来自包（07 Q24），多页共用。</summary>
+/// <summary>枚举的展示文案：平台来自应用、架构来自包，多页共用。</summary>
 public static class EnumLabels
 {
     public static string Platform(UpdatePlatform platform) => platform switch

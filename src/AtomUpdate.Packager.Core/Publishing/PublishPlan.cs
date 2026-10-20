@@ -4,14 +4,14 @@ using AtomUpdate.Packager.Core.Models;
 
 namespace AtomUpdate.Packager.Core.Publishing;
 
-/// <summary>单架构打包目标（docs/05 §16 publish 编排）：来源目录 + 包类型；BaselineDirectory 非空则同时产增量。</summary>
+/// <summary>单架构打包目标（docs/05 §5 publish 编排）：来源目录 + 包类型；BaselineDirectory 非空则同时产增量。</summary>
 public sealed class PackageTarget
 {
     public required UpdateArch Arch { get; init; }
     public required PackageType PackageType { get; init; }
     public required string SourceDirectory { get; init; }
 
-    /// <summary>增量基线目录；非空时产出 delta-{fromVersion}-to-{version}。</summary>
+    /// <summary>增量基线目录；非空时产出 delta-{from}-to-{to}-{arch}.zip。</summary>
     public string? BaselineDirectory { get; init; }
 
     /// <summary>exe/msi 静默/安装参数。</summary>
@@ -19,7 +19,7 @@ public sealed class PackageTarget
     public string? InstallArgs { get; init; }
 }
 
-/// <summary>发布全链路计划（CLI 与 Avalonia 向导共用，docs/05 §12/§16）：
+/// <summary>发布全链路计划（CLI 与 Avalonia 向导共用，docs/05 §5/§13）：
 /// 打包（每架构 full，可选 delta）→ 上传（服务端）→ 合并单请求推送 → 可选发布。</summary>
 public sealed class PublishPlan
 {

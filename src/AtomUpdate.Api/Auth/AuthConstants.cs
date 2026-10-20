@@ -5,7 +5,7 @@ public static class AuthPolicies
     /// <summary>管理后台（JWT）：Release 发布与全部管理端点。</summary>
     public const string Manage = "manage";
 
-    /// <summary>平台管理员（JWT + is_platform_admin=true）：租户管理等平台级操作（M2 两级权限模型）。</summary>
+    /// <summary>平台管理员（JWT + is_platform_admin=true）：租户管理等平台级操作（两级权限模型）。</summary>
     public const string PlatformAdmin = "platform-admin";
 }
 

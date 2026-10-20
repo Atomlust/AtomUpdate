@@ -25,7 +25,7 @@ public sealed class ReleaseAssetInput
     /// <summary>delta 必填（增量起点版本），full 必须为空。</summary>
     public string? FromVersion { get; init; }
 
-    /// <summary>该包适用的 CPU 架构；平台由应用决定（07 Q24，一条版本可挂多架构资产）。</summary>
+    /// <summary>该包适用的 CPU 架构；平台由应用决定（一条版本可挂多架构资产）。</summary>
     public required UpdateArch Arch { get; init; }
 
     public required PackageType PackageType { get; init; }
@@ -102,7 +102,7 @@ public sealed class ReleaseDto
     public required IReadOnlyList<ReleaseChannelDto> Channels { get; init; }
 }
 
-/// <summary>管理端跨应用版本列表行（版本页默认全量展示 + 项目/应用检索，docs/03 §6.2 管理面）。</summary>
+/// <summary>管理端跨应用版本列表行（版本页默认全量展示 + 项目/应用检索，docs/03 §3.4 管理面）。</summary>
 public sealed class ManageReleaseDto
 {
     [JsonConverter(typeof(LongIdJsonConverter))]
@@ -130,7 +130,7 @@ public sealed class ReleasePublishRequest
     public DateTimeOffset? PublishedAt { get; init; }
 }
 
-/// <summary>草稿编辑（仅 draft/prerelease 可改；docs/07 §4.2 M2-D）。null 字段不更新。</summary>
+/// <summary>草稿编辑（仅 draft/prerelease 可改）。null 字段不更新。</summary>
 public sealed class ReleaseUpdateRequest
 {
     public int? BuildNumber { get; init; }

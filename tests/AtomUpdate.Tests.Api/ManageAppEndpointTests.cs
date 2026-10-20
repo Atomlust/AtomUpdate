@@ -86,7 +86,7 @@ public class ManageAppEndpointTests(ApiFixture fixture)
     {
         var scenario = await fixture.CreateScenarioAsync();
 
-        // 平台是应用的一等属性（07 Q24）：版本不再带平台，创建应用时必须定下它
+        // 平台是应用的一等属性：版本不再带平台，创建应用时必须定下它
         (await fixture.SendJsonAsync<AppDto>(HttpMethod.Post,
                 $"{ApiRoutes.ManagePrefix}/projects/{scenario.ProjectId}/apps",
                 new AppCreateRequest { AppId = "com.noplatform.app", Name = "NoPlatform" },

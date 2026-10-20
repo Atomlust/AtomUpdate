@@ -13,7 +13,7 @@ public sealed class AppDto
     public required string Name { get; init; }
     public required AppType Type { get; init; }
 
-    /// <summary>应用运行的操作系统；版本包的平台维度由此决定，创建后不可改（07 Q24）。</summary>
+    /// <summary>应用运行的操作系统；版本包的平台维度由此决定，创建后不可改。</summary>
     public required UpdatePlatform Platform { get; init; }
 
     public required EntityStatus Status { get; init; }

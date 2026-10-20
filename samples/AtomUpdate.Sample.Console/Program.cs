@@ -7,7 +7,7 @@ using AtomUpdate.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-// 示例宿主（06 M3 出口条件）：Generic Host 形态的控制台宿主；
+// 示例宿主：Generic Host 形态的控制台宿主；
 // 改造成服务型宿主需额外引用 Microsoft.Extensions.Hosting.WindowsServices 并 builder.Services.UseWindowsService()
 // （无 UI 宿主下通知本就是 Console，无需改动业务代码）。
 // 用法：dotnet run --project samples/AtomUpdate.Sample.Console -- --server http://localhost:5062 \
@@ -131,7 +131,7 @@ await host.StopAsync();
 return updater.State switch
 {
     UpdateState.NoUpdate => 0,
-    // 安装已调度、等待宿主退出触发（更新器归 M4）同样算成功
+    // 安装已调度、等待宿主退出触发同样算成功
     UpdateState.ReadyToInstall or UpdateState.InstallScheduled or UpdateState.RestartPending => 0,
     UpdateState.Failed => 2,
     _ => 1

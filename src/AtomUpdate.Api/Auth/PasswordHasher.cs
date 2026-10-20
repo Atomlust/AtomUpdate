@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 
 namespace AtomUpdate.Api.Auth;
 
-/// <summary>PBKDF2 自实现（docs/07 §4.2）：SHA-256、100k 迭代、16 字节随机盐、常数时间比较；
+/// <summary>PBKDF2 自实现：SHA-256、100k 迭代、16 字节随机盐、常数时间比较；
 /// 存储格式 v1.{iterations}.{salt-b64}.{hash-b64} 版本化，便于日后升级参数。</summary>
 public static class PasswordHasher
 {

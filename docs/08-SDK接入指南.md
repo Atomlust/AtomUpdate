@@ -6,13 +6,17 @@
 ## 1. 安装
 
 ```powershell
-dotnet add package AtomUpdate   # net10.0，自封包含标准更新器
+dotnet add package AtomUpdate   # net11.0，自封包含标准更新器
 ```
 
 ## 2. 最小接入（Generic Host）
 
 ```csharp
-using AtomUpdate.DependencyInjection;
+using AtomUpdate.Abstractions.Interfaces;   // IAtomUpdater
+using AtomUpdate.Core.Enums;                // UpdateTrigger
+using AtomUpdate.DependencyInjection;       // AddAtomUpdate
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddAtomUpdate(options =>
@@ -57,7 +61,8 @@ if (result.Check.HasUpdate && result.Download.Success)
 | 键 | 默认 | 说明 |
 |---|---|---|
 | `Enabled` | true | 总开关 |
-| `CheckOnStartup` | true | 启动后检查（延迟 `InitialDelay` 5s） |
+| `CheckOnStartup` | true | 启动后检查 |
+| `InitialDelay` | 5s | 启动首查延迟 |
 | `Interval` | 6h | 轮询间隔 |
 | `JitterMinutes` | 10 | 抖动 ± 分钟 |
 | `CheckOnNetworkRecovery` / `CheckOnResume` | true | 网络恢复/系统唤醒触发 |
@@ -133,8 +138,9 @@ if (result.Check.HasUpdate && result.Download.Success)
 | 键 | 默认 | 说明 |
 |---|---|---|
 | `Network.Proxy` | null | 代理（null = 系统默认） |
+| `Network.UseDefaultCredentials` | false | 使用系统默认凭据（NTLM/Kerberos 代理场景） |
 | `Network.Timeout` / `Network.RetryCount` | 30s / 3 | 检查/上报超时（下载用无进展超时） |
-| `Network.UserAgent` | null | 默认 `AtomUpdate/{version} ({os}; {arch})` |
+| `Network.UserAgent` | null | 默认 `AtomUpdate/0.1.0 ({os}; {arch})`（版本段为固定串，非程序集版本） |
 | `Logging.MinLevel` / `LogToFile` / `LogDirectory` / `RetentionDays` | Information / false / null / 7 | 日志 |
 
 ## 4. IAtomUpdater 成员与事件
@@ -208,7 +214,7 @@ public class UpdateViewModel : IDisposable
     private async Task RunUpdateAsync()
     {
         var dl = await _updater.DownloadAsync(DownloadMode.Foreground);
-        if (!dl.Success) { ShowError(dl.Error); return; }
+        if (!dl.Success) { ShowError(dl.ErrorMessage); return; }
         await _updater.InstallAndRestartAsync();       // 调度安装：OnRestart 写状态随宿主退出生效 / Immediate 立即启动更新器
     }
 
@@ -222,7 +228,7 @@ public class UpdateViewModel : IDisposable
 
 - 后台轮询默认开启（6 小时 ± 抖动、启动 5 秒后首查、失败指数退避），无需手写定时器；轮询发现更新走 Silent 下载，就绪后 `UpdateReady` 提示
 - `Postpone` 的截止时间与次数持久化，超期/超次自动升级为强制路径；服务端强更（`ForceUpdate=true`）下推迟无效，UI 必须隐藏"稍后"
-- 更新器（AOT 单文件）由 `UpdaterProvisioner` 自动部署到 `state/{appId}/updater/`，宿主无需分发额外文件
+- 更新器（AOT 单文件）由 `UpdaterProvisioner` 自动释放到 `{AtomUpdateRoot}/updater/{version}/`（版本化目录 + `current` 指针，避免覆盖运行中的更新器；平台目录见 [10 §平台目录](10-更新器配置参考.md)），宿主无需分发额外文件
 - 全量配置项见 §3（下载模式、计量网络、限速、校验、安装模式、通知）
 
 ## 8. 场景二：引用 AtomUpdate 的 App（MAUI / 移动端）
@@ -250,7 +256,7 @@ if (result.HasUpdate && result.Update is { } info)
         await Shell.Current.DisplayAlert("必须更新", $"最新版本 {info.LatestVersion}，请立即更新", "去更新");
     else
         await Shell.Current.DisplayAlert("发现新版本",
-            $"{info.LatestVersion}\n{info.Notes?.FirstOrDefault()?.New?.FirstOrDefault()}", "立即更新", "稍后");
+            $"{info.LatestVersion}\n{info.ReleaseNotes?.New?.FirstOrDefault()}", "立即更新", "稍后");
 }
 ```
 
@@ -262,7 +268,7 @@ if (result.HasUpdate && result.Update is { } info)
 
 ## 9. 场景三：其他语言接入（Java 等，REST 直连）
 
-非 .NET 客户端不引用 SDK，直接调用两个公开端点（**无需任何鉴权头**——check/report 公开，匿名请求按请求体 projectKey/appId 反查租户）。字段名 camelCase，完整契约见 [contracts/openapi.v1.json](contracts/openapi.v1.json)。
+非 .NET 客户端不引用 SDK，直接调用公开端点（本例用 `POST /api/check` 与 `POST /api/report/install`；**无需任何鉴权头**——check/report/stats 端点公开，匿名请求按请求体 projectKey/appId 反查租户）。字段名 camelCase，完整契约见 [contracts/openapi.v1.json](contracts/openapi.v1.json)。
 
 ### 9.1 契约
 
@@ -297,17 +303,25 @@ if (result.HasUpdate && result.Update is { } info)
     "type": "delta",
     "packageType": "zip",
     "fromVersion": "1.2.0",
-    "url": "https://update.example.com/uploads/app/1.3.0/app-1.3.0.zip",
+    "url": "https://update.example.com/uploads/app/1.3.0/app-1.3.0-x64.zip",
     "sha256": "…",
     "size": 15728640,
     "arch": "x64"
   },
-  "releaseNotes": { "language": "en", "new": ["…"], "improvements": ["…"], "fixes": ["…"] }
+  "fullPackage": {
+    "packageType": "zip",
+    "url": "https://update.example.com/uploads/app/1.3.0/app-1.3.0-windows-x64.zip",
+    "sha256": "…",
+    "size": 52428800,
+    "arch": "x64"
+  },
+  "releaseNotes": { "new": ["…"], "improvements": ["…"], "fixes": ["…"], "notes": [] }
 }
 ```
 
 - `hasUpdate=false` 时只有 `latestVersion` / `policyUnchanged` / `policy`
-- `package.type=delta` 表示增量包（`fromVersion` = 请求里的当前版本才可应用），否则用全量包；`forceUpdate=true` 时客户端不得提供跳过选项
+- `package` 为优先包（增量优先），`fullPackage` 始终作为兜底下发；`package.type=delta` 时其 `fromVersion` 必须等于请求里的当前版本才可应用，否则回落 `fullPackage`；`forceUpdate=true` 时客户端不得提供跳过选项
+- `releaseNotes` 无 `language` 字段（服务端按 en 优先取一种语言下发）
 - 客户端职责：下载 → SHA-256 校验（不匹配丢弃重试）→ 应用包（zip 解压替换 / exe 静默安装，`package` 上的 silent/install 参数与打包时填写一致）→ 上报
 
 **POST /api/report/install** —— 安装结果上报（幂等，重放返回 `duplicate=true`）：
@@ -370,7 +384,7 @@ public class AtomUpdateClient {
             // 强更：UI 不得提供跳过选项；此处直接进入下载安装
         }
         JsonObject pkg = json.getAsJsonObject("package");
-        // kind=delta 的前提是 fromVersion 与当前版本一致，否则应请求全量（本例简化：仅应用服务端给的包）
+        // type=delta 的前提是 fromVersion 与当前版本一致，否则应回落 fullPackage（本例简化：仅应用服务端给的 package）
         Path target = Files.createTempFile("update-", ".zip");
         http.send(HttpRequest.newBuilder(URI.create(pkg.get("url").getAsString())).build(),
                   HttpResponse.BodyHandlers.ofFile(target));

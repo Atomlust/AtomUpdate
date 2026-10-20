@@ -7,7 +7,7 @@ using AtomUpdate.Packager.Core.Packaging;
 
 namespace AtomUpdate.Packager.Core.Publishing;
 
-/// <summary>发布全链路编排（docs/05 §12）：每架构 full(+可选 delta) → 服务端上传（JWT 登录会话）
+/// <summary>发布全链路编排（docs/05 §5/§11）：每架构 full(+可选 delta) → 服务端上传（JWT 登录会话）
 /// → 多架构资产合并单请求创建版本（防 409）→ 可选按通道发布。CLI 与 Avalonia 向导共用。</summary>
 public sealed class PublishOrchestrator
 {

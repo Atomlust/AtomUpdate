@@ -5,7 +5,7 @@ using AtomUpdate.Packager.ViewModels;
 
 namespace AtomUpdate.Packager.Views;
 
-/// <summary>四步向导视图（docs/05 §12）：交互仅目录/文件选择，状态全在 WizardViewModel。</summary>
+/// <summary>四步向导视图（docs/05 §4）：交互仅目录/文件选择，状态全在 WizardViewModel。</summary>
 public partial class WizardView : UserControl
 {
     public WizardView()

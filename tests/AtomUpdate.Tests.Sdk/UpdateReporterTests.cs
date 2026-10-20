@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AtomUpdate.Tests.Sdk;
 
-/// <summary>上报离线兜底（04 §3.14/Q15，W4 出口：断网场景离线补报验证通过）。pending-reports 用 stateRootOverride 落到临时目录，不污染真实用户目录。</summary>
+/// <summary>上报离线兜底（04 §3.14：断网场景离线补报）。pending-reports 用 stateRootOverride 落到临时目录，不污染真实用户目录。</summary>
 public class UpdateReporterTests : IDisposable
 {
     private readonly string _tempRoot =

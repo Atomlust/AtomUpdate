@@ -3,20 +3,22 @@
 ## 1. 实体关系总览
 
 ```
-Tenant 1─n User 1─n ProjectMember n─1 Project
+Tenant 1─n User；User 平台管理员标记 IsPlatformAdmin（MVP 两级权限，ProjectMember 角色表二阶段启用）
 Project 1─n App 1─n Release 1─n ReleaseAsset
 Release n─n UpdateChannel   (ReleaseChannel: release × channel × status；通道为全局枚举预设)
 Release 1─n ReleaseNote (语言维度)
-App 1─1 UpdatePolicy (含 version 自增)   App 1─n ClientPolicyOverride
+App 1─1 UpdatePolicy (含 version 自增)
 App 1─n Installation (installationId, machineFingerprint, channel)
 Installation 1─n InstallationReport / UpdateCheckLog / DownloadLog
 User/Project/Release 操作 → AuditLog
 PackageSource：记录资产来源（存储标识、区域），不含凭据
 ```
 
+> 实体清单以 `src/AtomUpdate.Api/Data/Entities/` 与 `AtomUpdateDbContext` 为准。`ProjectMember`、`ClientPolicyOverride` 为二阶段规划，当前未建表。
+
 ## 2. 核心实体字段设计
 
-> **主键约定**：所有服务端实体 `Id` 均为 `long`，由 **IdGen 库**（NuGet `IdGen`，Snowflake 结构：41 时间位 + 10 生成器位 + 12 序列位）生成——时间有序、趋势递增、分布式无中心。Api 直接 `AddSingleton(new IdGenerator(generatorId))` 并桥接注册 `IIdGenerator<long>` 单例；库不含 EF Core / JSON 配套包，由 Api 自实现 EF Core `ValueGenerator<long>`（`Add` 时应用侧赋值）与 `System.Text.Json` `JsonConverter<long>` 两个薄封装。多实例部署需保证每实例 `GeneratorId` 唯一（`IdGen:GeneratorId` 配置注入；单实例默认 0）。例外：`Installation.Id /*=installationId*/` 为客户端生成的匿名 UUID，不适用 IdGen。跨 JSON 边界时 `Id` 以字符串输出（防 JS `Number` 安全整数范围外的精度丢失），数据库与 .NET 内部保持 `long`。
+> **主键约定**：所有服务端实体 `Id` 均为 `long`，由 **IdGen 库**（NuGet `IdGen`，Snowflake 结构：41 时间位 + 10 生成器位 + 12 序列位）生成——时间有序、趋势递增、分布式无中心。Api 直接 `AddSingleton(new IdGenerator(generatorId))` 并桥接注册 `IIdGenerator<long>` 单例；库不含 EF Core / JSON 配套包，由 Api 自实现 EF Core `ValueGenerator<long>`（`Add` 时应用侧赋值）与 `System.Text.Json` `JsonConverter<long>` 两个薄封装。多实例部署需保证每实例 `GeneratorId` 唯一（`IdGen:GeneratorId` 配置注入；单实例默认 0）。`Installation` 主键 `Id` 同样走 IdGen（`long`）；客户端生成的匿名 UUID 存于独立字符串列 `InstallationId`（唯一索引 `(AppId, InstallationId)`）。跨 JSON 边界时 `Id` 以字符串输出（防 JS `Number` 安全整数范围外的精度丢失），数据库与 .NET 内部保持 `long`。
 
 ### 2.1 租户与权限域
 
@@ -24,7 +26,7 @@ PackageSource：记录资产来源（存储标识、区域），不含凭据
 Tenant        { Id, Name, Slug, Status, CreatedAt }
 User          { Id, TenantId, Email /*全局唯一*/, UserName /*可选登录名，全局唯一，存储小写*/, PasswordHash /*PBKDF2 自实现*/, DisplayName, IsPlatformAdmin /*平台管理员*/, Status }
 Project       { Id, TenantId, Key /*唯一, 如"myapp"*/, Name, Description, Status }
-ProjectMember { ProjectId, UserId, Role /* admin|publisher|viewer */ }   // 二阶段启用：MVP 简化两级权限
+ProjectMember { ProjectId, UserId, Role /* admin|publisher|viewer */ }   // 二阶段规划，当前未建表；MVP 简化两级权限（IsPlatformAdmin）
 ```
 
 ### 2.2 应用与发布域
@@ -33,12 +35,12 @@ ProjectMember { ProjectId, UserId, Role /* admin|publisher|viewer */ }   // 二�
 App
 {
     Id, ProjectId, AppId /*"com.company.myapp"*/,
-    Name, Type /* WindowsDesktop|MacDesktop|LinuxDesktop|Console|AppService|App */,
-    Platform /*windows|macos|linux，创建后不可改*/,
+    Name, Type /* Desktop|Console|AppService|App */,
+    Platform /*Windows|Macos|Linux|Ios|Android|HarmonyOS，创建后不可改*/,
     Status
 }
-// 平台是应用属性（windows|macos|linux，创建后不可改）：一个 appId 只服务一个平台，
-// 类型与平台解耦（Console/AppService/App 不区分桌面平台，平台仍须显式选定）。
+// 平台是应用属性（创建后不可改）：一个 appId 只服务一个平台，
+// 类型与平台解耦（Desktop 涵盖 Win/macOS/Linux 桌面端，Console/AppService/App 不区分桌面平台，平台仍须显式选定）。
 // 架构是资产属性：Release 自身不含 Platform/Arch——更新全程跟随 appId，
 // 同一版本的语义在应用内唯一，同版本号的多架构包是同一条 Release 下的多个资产。
 
@@ -75,7 +77,7 @@ ReleaseAsset               // 包资产（架构维度在资产上：一条版�
 
 ReleaseNote
 { Id, ReleaseId, Language, New[], Improvements[], Fixes[], Notes[], RawMarkdown }
-    // 四段的录入约定（后台与 05 §2 Packager 向导一致）：多行文本、每行一条要点、行内 Markdown 原样存储；
+    // 四段的录入约定（后台与 05 §4 Packager 向导一致）：多行文本、每行一条要点、行内 Markdown 原样存储；
     // 行首 "- " / "* " 列表符号入库前剥离。RawMarkdown 为整段兜底字段，不经 /api/check 下发
 
 PackageSource
@@ -99,21 +101,21 @@ UpdatePolicy
 }
 ```
 
-> `policy.version` 在同一事务内随策略修改递增；**MVP 粒度为 App 级**；实体保留 `Channel?` 枚举字段与 ClientPolicyOverride 表供通道级覆盖（二阶段启用）。防降级判定：默认防降级（策略显式开启 `AllowDowngrade` + 客户端本地开关同时允许才提示回退）。
+> `policy.version` 在同一事务内随策略修改递增；**MVP 粒度为 App 级**；实体保留 `Channel?` 枚举字段供通道级覆盖（二阶段启用，当前无 ClientPolicyOverride 表）。防降级判定：默认防降级（策略显式开启 `AllowDowngrade` + 客户端本地开关同时允许才提示回退）。
 
 ### 2.4 统计域
 
 ```csharp
-Installation        { Id /*=installationId*/, AppId, MachineFingerprintHash, Channel, FirstSeenAt, LastSeenAt, LastVersion }
-UpdateCheckLog      { Id, InstallationId, AppId, Platform, Arch, Channel, CurrentVersion, LatestVersion, HasUpdate, ETagHit /*bool 304*/, PolicyUnchanged, CheckedAt }
-DownloadLog         { Id, InstallationId, AppId, FromVersion, ToVersion, Kind /*full|delta 可空*/, Status, SizeBytes, ErrorCode, StartedAt, FinishedAt }
-InstallationReport  { Id, AppId, InstallationId, FromVersion?, ToVersion, Stage /*starting|verifying|installing|completed|failed|rolledBack*/,
-                      InstallMode, Elevated, ElevationRejected, ErrorCode?, ErrorMessage?, LogPath?, Timestamp }
+Installation        { Id(long,IdGen), TenantId, AppId, InstallationId /*客户端匿名 UUID*/, MachineFingerprintHash, Channel, FirstSeenAt, LastSeenAt, LastVersion }
+UpdateCheckLog      { Id, TenantId, InstallationId, AppId, ProjectKey, AppKey, Platform, Arch, Channel, CurrentVersion, LatestVersion, HasUpdate, ETagHit /*bool 304*/, PolicyUnchanged, ClientIp, CheckedAt }
+DownloadLog         { Id, TenantId, InstallationId, AppId, FromVersion, ToVersion, Kind /*full|delta 可空*/, Success /*bool*/, Bytes, DurationMs, ErrorCode, DownloadedAt }
+InstallationReport  { Id, TenantId, AppId, InstallationId, FromVersion?, ToVersion, Stage /*starting|verifying|installing|completed|failed|rolledBack*/,
+                      InstallMode, Elevated, ElevationRejected, ErrorCode?, ErrorMessage?, ReportedAt }
 ```
 
-> UpdateCheckLog/DownloadLog 按月分区（PostgreSQL `PARTITION BY RANGE`），保留策略可配；写入走后台批量通道。
+> 三类日志保留策略可配（Settings 表 `logging.retention_days`，管理后台「系统设置」调整）；写入走后台批量通道（有界队列 + 批量落库）。按月分区未实施（MVP 量级不需要，`UpdateCheckLog` 实体注释标记留待规模期）。
 >
-> **对齐实现口径**：①DownloadLog 按上报契约无 `ReleaseAssetId`/`Mode` 字段，`Kind`（full/delta）为可空列；分区未实施（MVP 量级不需要）。②InstallationReport 实际字段：`Stage`（starting/verifying/installing/completed/failed/rolledBack）+ `InstallMode` + 提权标记 + `ErrorCode/ErrorMessage`（截断 2000），幂等唯一索引 `(AppId, InstallationId, ToVersion, Stage, ErrorCode)` 且 `AreNullsDistinct(false)`。③Installation 增 `LastVersion`（startup/install 上报刷新）与 `(AppId, LastSeenAt)` 索引。
+> **对齐实现口径**：①`DownloadLog` 无 `ReleaseAssetId`/`Mode`/`Status`/`SizeBytes`/`StartedAt`/`FinishedAt`——实际为 `Success(bool)`、`Bytes`、`DurationMs`、单时间戳 `DownloadedAt`，`Kind`（full/delta）可空。②`InstallationReport` 无 `LogPath` 列，时间列为 `ReportedAt`；上报契约（wire）含 `logPath`/`timestamp` 但服务端丢弃 logPath、timestamp 落为 ReportedAt。幂等唯一索引 `(AppId, InstallationId, ToVersion, Stage, ErrorCode)` 且 `AreNullsDistinct(false)`。③`Installation` 有 `LastVersion`（startup/install 上报刷新）与唯一索引 `(AppId, InstallationId)`。
 
 ## 3. 更新检查 API（核心契约）
 
@@ -124,7 +126,7 @@ POST /api/check
 Headers:
   （公开端点，无需鉴权头；管理端 JWT 用 Authorization）
   User-Agent: AtomUpdate/{sdkVersion} ({os}; {arch})
-  If-None-Match: "myapp-com.company.myapp-windows-x64-1.2.3-1.2.3-p12"
+  If-None-Match: "3f9c2a1b7e4d08a6"
 Body:
 {
   "projectKey": "myapp",
@@ -194,9 +196,9 @@ ETag: "3f9c2a1b7e4d08a6"    （不透明 hash16；其组成见 §3.1 说明）
     "maxDownloadSpeedKBps": 0,
     "updatedAt": "2026-10-06T00:00:00+00:00"
   },
-  "package":      { "type": "delta|full", "packageType": "zip", "fromVersion": "1.2.3",
+  "package":      { "type": "delta|full", "packageType": "zip", "arch": "x64", "fromVersion": "1.2.3",
                     "url": "...", "size": 0, "sha256": "...", "signature": "...", "keyId": "..." },
-  "fullPackage":  { "packageType": "exe", "url": "...", "sha256": "...", "signature": "...", "keyId": "...",
+  "fullPackage":  { "packageType": "exe", "arch": "x64", "url": "...", "sha256": "...", "signature": "...", "keyId": "...",
                     "silentArgs": "/VERYSILENT /NORESTART" },
   "releaseNotes": { "new": [], "improvements": [], "fixes": [], "notes": [] }
 }
@@ -223,21 +225,20 @@ ETag: "3f9c2a1b7e4d08a6"    （不透明 hash16；其组成见 §3.1 说明）
 
 ```
 POST /api/stats/install        安装实例注册（SDK 启动上报 installationId）
-POST /api/stats/check          检查行为上报（与 /api/check 合并记录时可省）
 POST /api/stats/download       下载结果上报
 POST /api/report/install       安装结果上报（更新器直传 + SDK 补报共用，见下）
 POST /api/stats/batch          批量上报（SDK IUpdateReporter.ReportBatchAsync，离线队列 flush）
 GET  /health                   运维探针（应用健康检查）
 ```
 
-> `/api/stats/install`、`/api/stats/download`、`/api/report/install`、`/api/stats/batch` 均已落地（公开端点：匿名按请求体 projectKey/appId 反查租户，JWT 会话直接按 tenant_id 过滤）。`/api/stats/check` 不实现——batch 内 `check` 事件服务端丢弃（`/api/check` 已落 UpdateCheckLog，双计会污染 304 命中率）。上报失败 SDK 落 `pending-reports` 等下次启动补报（04 §3.14）。
+> 四个上报端点均已落地（公开端点：匿名按请求体 projectKey 反查租户，JWT 会话直接按 tenant_id 过滤）。**无 `/api/stats/check`**——batch 内 `check` 事件服务端丢弃（`/api/check` 已落 UpdateCheckLog，双计会污染 304 命中率）。上报失败 SDK 落 `pending-reports` 等下次启动补报（04 §3.14）。
 
-`/api/report/install` 说明（对齐更新器需求 §15）：
+`/api/report/install` 说明：
 
 - 更新器在安装成功 / 失败 / 回滚 / 提权被拒时**直接调用**（公开端点，无需鉴权头；重试 3 次指数退避，超时 15s）。
 - 回传失败时更新器在状态文件保留 `reported=false`，主程序下次启动由 SDK 读取状态文件**补报**同一接口。
 - 请求体：projectKey / appId / installationId / machineFingerprint / fromVersion / toVersion / stage / installMode / elevated / elevationRejected / errorCode / errorMessage / logPath / timestamp。
-- 服务端写入 InstallationReport，按 `(installationId, toVersion, stage, errorCode)` 幂等去重（直传与补报可能重复）。
+- 服务端写入 InstallationReport，按 `(AppId, installationId, toVersion, stage, errorCode)` 幂等去重（直传与补报可能重复）。
 
 ### 3.4 管理 / 发布端点（契约以 [contracts/openapi.v1.json](contracts/openapi.v1.json) 为准）
 
@@ -253,7 +254,8 @@ PATCH  /api/projects/{projectId}/apps/{appId}/releases/{id}            编辑草
 POST   /api/projects/{projectId}/apps/{appId}/releases/{id}/publish    发布（body：channels[dev|preview|beta|rc|stable] + publishedAt?）
 POST   /api/projects/{projectId}/apps/{appId}/releases/{id}/unpublish  撤回（整条 Release 对所有通道行置 withdrawn，幂等）
 GET    /api/projects/{projectId}/apps/{appId}/releases                 查询版本（分页 page/pageSize + 过滤 arch/status；arch=有该架构包的版本；Packager 历史页复用）
-POST   /api/projects/{projectId}/apps/{appId}/releases/{id}/rollback   回滚（三阶段实现）
+DELETE /api/projects/{projectId}/apps/{appId}/releases/{id}            受限删除（仅 Draft/Withdrawn；级联清资产/通道/说明并删 /uploads 包文件）
+       （无 rollback 端点：运营"回滚"由 unpublish 当前版本 + 发布旧版本实现）
 
 # 包文件上传（JWT Bearer，Manage 策略）
 POST   /api/manage/projects/{projectId}/apps/{appId}/upload?version={v}  multipart 上传（字段 file），返回 {url,sha256,size,filename}
@@ -265,7 +267,7 @@ GET/PATCH       /api/manage/tenants/{id}
 GET/POST        /api/manage/projects
 GET/PATCH/DELETE /api/manage/projects/{id}          （删除为受限删除体系：须先清空版本/应用并经确认门禁）
 GET/POST        /api/manage/projects/{projectId}/apps      （POST 必填 platform，缺失 400 INVALID_REQUEST；创建后不可改）
-GET/PATCH/DELETE /api/manage/projects/{projectId}/apps/{appId}（受限删除：须先清空版本）
+DELETE          /api/manage/projects/{projectId}/apps/{appId}（受限删除：须先清空版本；GET/PATCH 单个应用走 /api/manage/apps/{id}）
 GET             /api/manage/apps                    （跨项目全量列表，后台"应用"页默认视图；
         可选过滤 projectId / type（应用类型，大小写不敏感，非法值 400）/ keyword（名称或 AppId ILike）；
         响应 AppDto 附带 projectId + projectName，单项目上下文调用时 projectName 为该项目）
@@ -280,11 +282,12 @@ POST            /api/manage/auth/change-password    （修改当前用户密码�
 GET             /api/manage/overview                （轻量概览）
 GET             /api/manage/audit-logs              （分页，Id 倒序）
 GET             /api/manage/releases                （跨项目版本列表，后台"全部版本"视图）
-GET             /api/manage/stats/overview          （统计概览）
+GET/PATCH       /api/manage/settings                （系统设置：日志保留天数、每应用检测记录上限；PlatformAdmin 策略）
 GET             /api/manage/stats/installations             （安装实例分页列表）
 GET             /api/manage/stats/installations/summary     （按版本/通道汇总）
 GET             /api/manage/stats/downloads/summary         （下载汇总）
 GET             /api/manage/stats/checks/summary            （检查汇总）
+GET             /api/manage/stats/checks                    （检查日志分页，后台"检查日志"页）
 ```
 
 > **鉴权规则**：`/api/check` 与上报端点（`/api/report/*`、`/api/stats/*`）**公开**——匿名请求按请求体 `projectKey` 跨租户匹配（0 命中 → 404，多重命中 → 401，不泄露存在性与归属），JWT 会话按 tenant_id 声明租户内过滤；release/上传端点统一 **Manage 策略**（JWT Bearer，调用方为打包工具登录会话与管理后台）。
@@ -295,19 +298,21 @@ GET             /api/manage/stats/checks/summary            （检查汇总）
 // 逻辑响应组装后（实现见 AtomUpdate.Api/Endpoints/CheckEndpoint.cs）：
 var raw = $"{projectKey}|{appId}|{platform}|{arch}|{currentVersion}|{latestVersion}|p{policyVersion}"; // platform/arch 小写
 var etag = $"\"{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)).AsSpan(0, 8)).ToLowerInvariant()}\""; // hash16
-if (Request.Headers.IfNoneMatch == etag) return NotModified(etag);
-Response.Headers.ETag = etag;
+Response.Headers.ETag = etag;                       // ETag 头在 304 判定之前写入，304 也带该头
+if (IsNotModified(Request.Headers.IfNoneMatch, etag)) return NotModified();  // 支持逗号分隔多值、W/ 弱校验器剥离、* 通配
 return Ok(body);
 ```
 
 - 服务端不保存 ETag 状态，**无状态可横向扩展**；发布操作改变 latestVersion / policyVersion → 哈希自然变化 → 缓存自动失效。
-- 版本比较使用 NuGet `Semver` 库；非法版本号返回 400。
+- 版本比较使用 **`NuGet.Versioning`**（`SemanticVersion`）；非法版本号返回 400。
 - 同版本资产重传：**不允许**——包文件有误时撤回后用新构建号重发，规避 ETag 缓存一致性与 AssetRevision 复杂度。
 
 ## 5. 数据库迁移与多数据库
 
-- EF Core Migrations，Provider：`Sqlite`（默认，零依赖单文件）/ `Npgsql`（生产推荐）。
-- 多租户隔离：所有业务表带 `TenantId`，EF Core Global Query Filter 强制过滤；唯一索引均含租户列。
+> 数据库选型、双 provider 实现（类型映射 / WAL / 独立迁移集 / 写路径参数）的完整说明见 [11 数据库选型与部署指南](11-数据库选型与部署指南.md)，本节只列与数据模型直接相关的约定。
+
+- EF Core Migrations，Provider：`Database:Provider=sqlite`（默认，零依赖单文件）/ `npgsql`（生产推荐）；两套独立迁移集（pg 在 `Data/Migrations/`，SQLite 在 `Data/Migrations/Sqlite/`，派生上下文隔离，docs/11 §3.2）。
+- 多租户隔离：业务表带 `TenantId`，EF Core Global Query Filter 强制过滤。唯一索引多数**不含**租户列（如 `App (ProjectId, AppId)`、`Release (AppId, Version)`、`Installation (AppId, InstallationId)`）；`User.Email` 有意全局唯一；租户隔离由 Query Filter 而非索引承担。
 - 主键统一 `bigint`（SQLite `INTEGER`）：Api 引用 `IdGen`（直接注册 `IdGenerator` 单例，见 §2 主键约定），自实现 EF Core `ValueGenerator<long>` 封装生成器（`Add` 时应用侧赋值，无需数据库往返）；多实例部署每实例注入唯一 `GeneratorId`。
-- 迁移位置与启动策略：EF 迁移位于 `AtomUpdate.Api/Data/Migrations`；**Development 启动自动 `MigrateAsync()`**，生产由部署流程显式 `dotnet ef database update`（版本由仓库根 `dotnet-tools.json` 固定，CI 先 `dotnet tool restore`）。
-- 时间统一 UTC 存储，展示层转换。
+- 迁移启动策略：Development 恒自动 `MigrateAsync()`；非开发环境按 `Database:MigrateOnStartup`——**sqlite 默认 `true`**（生产容器也自动迁移），**npgsql 默认 `false`**（防多实例并发迁移，须显式开启或手动迁移，docs/09 §2）。
+- 时间统一 UTC 存储，展示层转换（SQLite 侧 DateTimeOffset 落 INTEGER UTC Ticks，docs/11 §3.3）。

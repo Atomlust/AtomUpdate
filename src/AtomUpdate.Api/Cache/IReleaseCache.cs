@@ -3,8 +3,8 @@ using AtomUpdate.Core.Enums;
 namespace AtomUpdate.Api.Cache;
 
 /// <summary>
-/// 读路径发布缓存（02 §3.1）：按 (app, channel) 缓存"最新已发布版本"——平台在应用上、架构在各资产上
-/// （07 Q24），所以缓存条目与请求架构无关，选包时再按客户端上报的 arch 命中资产；
+/// 读路径发布缓存（02 §3.1）：按 (app, channel) 缓存"最新已发布版本"——平台在应用上、架构在各资产上，
+/// 所以缓存条目与请求架构无关，选包时再按客户端上报的 arch 命中资产；
 /// 发布/撤回 bump 应用级 epoch 使该应用全部条目失效；无 Redis 时退回内存 + TTL 30s。
 /// </summary>
 public interface IReleaseCache
@@ -27,7 +27,7 @@ public sealed record CachedRelease
     public string? MinSupportedVersion { get; init; }
     public required IReadOnlyList<CachedReleaseAsset> Assets { get; init; }
 
-    /// <summary>发行说明随版本同缓存（按 Id 序）：已发布版本不可编辑（Q11），命中后 /api/check 不再查说明表。</summary>
+    /// <summary>发行说明随版本同缓存（按 Id 序）：已发布版本不可编辑，命中后 /api/check 不再查说明表。</summary>
     public required IReadOnlyList<CachedReleaseNote> Notes { get; init; }
 }
 
