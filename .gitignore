@@ -23,6 +23,7 @@ Thumbs.db
 
 # 本地运行时 SQLite 库（UI 验证残留）
 src/AtomUpdate.Web/atomupdate.db*
+src/AtomUpdate.Api/atomupdate.db*
 
 # 代理工作数据（记忆/日志，不入库）
 .workbuddy/
