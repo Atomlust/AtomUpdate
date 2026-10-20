@@ -57,8 +57,18 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
+      - name: 安装 arm64 交叉编译工具链（linux-arm64 专属）
+        if: matrix.rid == 'linux-arm64'
+        run: sudo apt-get update && sudo apt-get install -y clang gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
       - name: Publish
-        run: dotnet publish src/AtomUpdate.Updater/AtomUpdate.Updater.csproj -c Release -r ${{ matrix.rid }} -p:PublishAot=true -o artifacts/updater/${{ matrix.rid }}/native
+        run: |
+          args=(-p:PublishAot=true)
+          # x64 runner 交叉编译 linux-arm64：默认宿主链接器不识别 aarch64 目标，
+          # 须改用 aarch64 交叉 gcc 做编译+链接（NativeAOT 官方文档做法）
+          if [ "${{ matrix.rid }}" = "linux-arm64" ]; then
+            args+=(-p:CppCompilerAndLinker=aarch64-linux-gnu-gcc)
+          fi
+          dotnet publish src/AtomUpdate.Updater/AtomUpdate.Updater.csproj -c Release -r ${{ matrix.rid }} "${args[@]}" -o artifacts/updater/${{ matrix.rid }}/native
       - uses: actions/upload-artifact@v4
         with:
           name: updater-${{ matrix.rid }}
