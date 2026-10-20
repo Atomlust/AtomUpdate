@@ -1,5 +1,6 @@
 @page "/users"
 @inject ApiClient Api
+@inject DisplayClock Clock
 @inject ToastService Toast
 @inject AuthState Auth
 
@@ -56,7 +57,7 @@
                 </DataTableColumn>
                 <DataTableColumn TData="UserDto" TValue="DateTimeOffset" Property="@(c => c.CreatedAt)" Header="创建时间">
                     <CellTemplate Context="row">
-                        @row!.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                        @row!.CreatedAt
                     </CellTemplate>
                 </DataTableColumn>
                 <DataTableColumn TData="UserDto" TValue="string" Property="@(c => c.Email)" Header="操作">
@@ -204,6 +205,8 @@
         {
             return;
         }
+
+        await Clock.EnsureLoadedAsync();
 
         await LoadAsync(1);
     }

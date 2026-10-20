@@ -147,6 +147,7 @@ public static class AdminClientServiceCollectionExtensions
                 }
             });
         services.AddScoped<ApiClient>();
+        services.AddScoped<DisplayClock>();
         return services;
     }
 }

@@ -1,5 +1,6 @@
 @page "/check-logs"
 @inject ApiClient Api
+@inject DisplayClock Clock
 @inject ToastService Toast
 @using AtomUpdate.Core.Constants
 
@@ -44,7 +45,7 @@
             <Columns>
                 <DataTableColumn TData="CheckLogDto" TValue="DateTimeOffset" Property="@(c => c.CheckedAt)" Header="时间戳">
                     <CellTemplate Context="row">
-                        @row!.CheckedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                        @Clock.Format(row!.CheckedAt)
                     </CellTemplate>
                 </DataTableColumn>
                 <DataTableColumn TData="CheckLogDto" TValue="string" Property="@(c => c.AppKey)" Header="应用">
@@ -108,8 +109,9 @@
             return;
         }
 
-        var appsResult = await Api.GetAsync<PagedResult<AppDto>>($"{ApiRoutes.ManagePrefix}/apps");
-        if (appsResult.IsSuccess && appsResult.Data is not null)
+        await Clock.EnsureLoadedAsync();
+
+        var appsResult = await Api.GetAsync<PagedResult<AppDto>>($"{ApiRoutes.ManagePrefix}/apps");        if (appsResult.IsSuccess && appsResult.Data is not null)
         {
             _apps = appsResult.Data.Items.ToList();
         }

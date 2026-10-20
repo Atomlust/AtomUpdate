@@ -1,5 +1,6 @@
 @page "/projects"
 @inject ApiClient Api
+@inject DisplayClock Clock
 @inject ToastService Toast
 
 <PageTitle>项目 - AtomUpdate 管理后台</PageTitle>
@@ -27,7 +28,7 @@
                         </CellTemplate>
                     </DataTableColumn>
                     <DataTableColumn TData="ProjectDto" TValue="DateTimeOffset" Property="@(c => c.CreatedAt)" Header="创建时间">
-                        <CellTemplate Context="row">@row!.CreatedAt.ToString("yyyy-MM-dd HH:mm")</CellTemplate>
+                        <CellTemplate Context="row">@Clock.FormatMinute(row!.CreatedAt)</CellTemplate>
                     </DataTableColumn>
                     <DataTableColumn TData="ProjectDto" TValue="string" Property="@(c => c.Name)" Header="操作">
                         <CellTemplate Context="row">
@@ -147,6 +148,8 @@
         {
             return;
         }
+
+        await Clock.EnsureLoadedAsync();
 
         await LoadAsync(1);
     }

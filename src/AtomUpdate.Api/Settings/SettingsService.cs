@@ -26,10 +26,59 @@ public sealed class SettingsService(AtomUpdateDbContext db)
         return raw is null ? defaultValue : JsonSerializer.Deserialize<int>(raw, JsonOptions);
     }
 
+    public async Task<string?> GetStringAsync(string key, CancellationToken ct = default)
+    {
+        var raw = await db.Settings.AsNoTracking()
+            .Where(s => s.Key == key)
+            .Select(s => s.Value)
+            .FirstOrDefaultAsync(ct);
+        if (raw is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<string>(raw, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            // 非法 JSON 视为未设置，调用方回落代码默认值
+            return null;
+        }
+    }
+
     /// <summary>读取两项日志运营参数（清理服务每轮调用）。</summary>
     public async Task<(int RetentionDays, int CheckLogPerAppLimit)> GetLoggingAsync(CancellationToken ct = default) =>
         (await GetIntAsync(KeyRetentionDays, DefaultRetentionDays, ct),
          await GetIntAsync(KeyCheckLogPerAppLimit, DefaultCheckLogPerAppLimit, ct));
+
+    /// <summary>读取管理后台时间显示时区（IANA 标识）；未设置或不可识别时回落东八区。</summary>
+    public async Task<string> GetTimeZoneAsync(CancellationToken ct = default)
+    {
+        var stored = await GetStringAsync(Core.Constants.DisplayTimeZone.SettingKey, ct);
+        return Core.Constants.DisplayTimeZone.IsValid(stored)
+            ? stored!.Trim()
+            : Core.Constants.DisplayTimeZone.DefaultTimeZoneId;
+    }
+
+    public async Task SetStringAsync(string key, string value, string? updatedBy, CancellationToken ct = default)
+    {
+        var setting = await db.Settings.FirstOrDefaultAsync(s => s.Key == key, ct);
+        var json = JsonSerializer.Serialize(value, JsonOptions);
+        if (setting is null)
+        {
+            db.Settings.Add(new Data.Entities.Setting { Key = key, Value = json, UpdatedBy = updatedBy, UpdatedAt = DateTimeOffset.UtcNow });
+        }
+        else
+        {
+            setting.Value = json;
+            setting.UpdatedBy = updatedBy;
+            setting.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
 
     public async Task SetIntAsync(string key, int value, string? updatedBy, CancellationToken ct = default)
     {

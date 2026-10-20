@@ -2,6 +2,7 @@
 @inject ApiClient Api
 @inject ToastService Toast
 @inject AuthState Auth
+@inject DisplayClock Clock
 @using AtomUpdate.Core.Constants
 
 <PageTitle>系统设置 - AtomUpdate 管理后台</PageTitle>
@@ -24,6 +25,26 @@
                         <Input Id="set-limit" Type="InputType.Number" @bind-Value="_form.CheckLogPerAppLimit"
                                Placeholder="默认 500；0 或负数表示关闭数量裁剪" />
                         <span class="au-state-desc">每个应用仅保留最近 N 条客户端检测记录，超出自动裁剪最旧。</span>
+                    </FieldContent>
+                </Field>
+                <Field>
+                    <FieldLabel For="set-tz">时间显示时区</FieldLabel>
+                    <FieldContent>
+                        <Select TValue="string" Value="_form.TimeZoneId" ValueChanged="OnTimeZoneChangedAsync">
+                            <SelectTrigger>
+                                <SelectValue Placeholder="选择时区" TValue="string" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                @foreach (var option in DisplayTimeZone.Common)
+                                {
+                                    <SelectItem Value="@option.Id" Text="@option.Label" TValue="string">@option.Label</SelectItem>
+                                }
+                            </SelectContent>
+                        </Select>
+                        <span class="au-state-desc">
+                            后台所有时间（审计、检测记录、发布记录、统计）统一按此时区显示，默认东八区。
+                            仅影响显示，存储与接口中的时间仍为 UTC。
+                        </span>
                     </FieldContent>
                 </Field>
                 <div class="au-btn-row" style="margin-top: 8px;">
@@ -50,6 +71,7 @@
             return;
         }
 
+        await Clock.EnsureLoadedAsync();
         await LoadAsync();
     }
 
@@ -60,12 +82,22 @@
         {
             _form.RetentionDays = result.Data.RetentionDays.ToString();
             _form.CheckLogPerAppLimit = result.Data.CheckLogPerAppLimit.ToString();
+            _form.TimeZoneId = result.Data.TimeZoneId;
+            Clock.Apply(_form.TimeZoneId);
             StateHasChanged();
         }
         else
         {
             Toast.Error(result.ErrorMessage ?? "加载系统设置失败", "加载失败");
         }
+    }
+
+    /// <summary>切换即预览：先按新时区刷新显示，落盘仍以「保存」为准。</summary>
+    private Task OnTimeZoneChangedAsync(string value)
+    {
+        _form.TimeZoneId = value;
+        Clock.Apply(value);
+        return Task.CompletedTask;
     }
 
     private async Task SaveAsync()
@@ -84,12 +116,16 @@
             var result = await Api.SendAsync<SettingsDto>(HttpMethod.Patch, $"{ApiRoutes.ManagePrefix}/settings", new
             {
                 retentionDays,
-                checkLogPerAppLimit
+                checkLogPerAppLimit,
+                timeZoneId = _form.TimeZoneId
             });
             if (result.IsSuccess && result.Data is not null)
             {
                 _form.RetentionDays = result.Data.RetentionDays.ToString();
                 _form.CheckLogPerAppLimit = result.Data.CheckLogPerAppLimit.ToString();
+                _form.TimeZoneId = result.Data.TimeZoneId;
+                // 保存成功即时刷新全局时钟，本页与其它页面无需刷新
+                Clock.Apply(_form.TimeZoneId);
                 Toast.Success("系统设置已更新，即时生效");
             }
             else
@@ -108,6 +144,7 @@
     {
         _form.RetentionDays = "7";
         _form.CheckLogPerAppLimit = "500";
+        _form.TimeZoneId = DisplayTimeZone.DefaultTimeZoneId;
         await SaveAsync();
     }
 
@@ -115,5 +152,6 @@
     {
         public string RetentionDays { get; set; } = "";
         public string CheckLogPerAppLimit { get; set; } = "";
+        public string TimeZoneId { get; set; } = DisplayTimeZone.DefaultTimeZoneId;
     }
 }

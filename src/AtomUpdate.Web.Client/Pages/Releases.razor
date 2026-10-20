@@ -1,5 +1,6 @@
 @page "/releases"
 @inject ApiClient Api
+@inject DisplayClock Clock
 @inject ToastService Toast
 @inject NavigationManager Navigation
 
@@ -109,7 +110,11 @@
                         </CellTemplate>
                     </DataTableColumn>
                     <DataTableColumn TData="ManageReleaseDto" TValue="string" Property="@(c => c.BuildNumber?.ToString() ?? string.Empty)" Header="构建号" />
-                    <DataTableColumn TData="ManageReleaseDto" TValue="string" Property="@(c => c.PublishedAt?.ToString("yyyy-MM-dd HH:mm") ?? string.Empty)" Header="发布时间" />
+                    <DataTableColumn TData="ManageReleaseDto" TValue="DateTimeOffset?" Property="@(c => c.PublishedAt)" Header="发布时间">
+                        <CellTemplate Context="row">
+                            @Clock.Format(row!.PublishedAt, "yyyy-MM-dd HH:mm")
+                        </CellTemplate>
+                    </DataTableColumn>
                     <DataTableColumn TData="ManageReleaseDto" TValue="string" Property="@(c => c.Version)" Header="操作">
                         <CellTemplate Context="row">
                             @if (ScopeForRow(row!) is { } rowScope)
@@ -212,6 +217,7 @@
             return;
         }
 
+        await Clock.EnsureLoadedAsync();
         await LoadProjectsAsync();
 
         // 子页面（新建/详情/编辑/发布/撤回）返回列表时携带作用域，这里还原选择后渲染表格

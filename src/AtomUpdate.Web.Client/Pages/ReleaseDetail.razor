@@ -1,5 +1,6 @@
 @page "/releases/{ReleaseId:long}"
 @inject ApiClient Api
+@inject DisplayClock Clock
 @inject NavigationManager Navigation
 
 <PageTitle>@(_release is { } title ? $"版本 {title.Version}" : "版本详情") - AtomUpdate 管理后台</PageTitle>
@@ -44,8 +45,8 @@
                 <li><b>包架构：</b>@EnumLabels.Archs(detail.Assets)</li>
                 <li><b>最低支持版本：</b>@(detail.MinSupportedVersion ?? "-")</li>
                 <li><b>强制更新：</b>@(detail.ForceUpdate ? "是" : "否")</li>
-                <li><b>创建时间：</b>@detail.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</li>
-                <li><b>发布时间：</b>@(detail.PublishedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")</li>
+                <li><b>创建时间：</b>@Clock.FormatMinute(detail.CreatedAt)</li>
+                <li><b>发布时间：</b>@Clock.Format(detail.PublishedAt, "yyyy-MM-dd HH:mm")</li>
                 <li><b>通道：</b>
                     @if (detail.Channels.Count == 0)
                     {
@@ -132,6 +133,8 @@
         {
             return;
         }
+
+        await Clock.EnsureLoadedAsync();
 
         if (Scope is not { } scope)
         {

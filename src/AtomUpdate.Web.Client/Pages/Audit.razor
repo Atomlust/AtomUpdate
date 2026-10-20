@@ -1,5 +1,6 @@
 @page "/audit"
 @inject ApiClient Api
+@inject DisplayClock Clock
 @inject ToastService Toast
 
 <PageTitle>审计日志 - AtomUpdate 管理后台</PageTitle>
@@ -13,7 +14,7 @@
             <Columns>
                 <DataTableColumn TData="AuditLogDto" TValue="DateTimeOffset" Property="@(c => c.CreatedAt)" Header="时间">
                     <CellTemplate Context="row">
-                        @row!.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")
+                        @Clock.Format(row!.CreatedAt)
                     </CellTemplate>
                 </DataTableColumn>
                 <DataTableColumn TData="AuditLogDto" TValue="string" Property="@(c => c.ActorName ?? c.Actor ?? string.Empty)" Header="操作人" />
@@ -50,6 +51,8 @@
         {
             return;
         }
+
+        await Clock.EnsureLoadedAsync();
 
         await LoadAsync(1);
     }

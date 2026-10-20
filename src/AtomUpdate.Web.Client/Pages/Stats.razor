@@ -1,5 +1,6 @@
 @page "/stats"
 @inject ApiClient Api
+@inject DisplayClock Clock
 @inject ToastService Toast
 
 <PageTitle>统计 - AtomUpdate 管理后台</PageTitle>
@@ -116,12 +117,12 @@
                         </DataTableColumn>
                         <DataTableColumn TData="InstallationDto" TValue="DateTimeOffset" Property="@(c => c.FirstSeenAt)" Header="首次活跃">
                             <CellTemplate Context="row">
-                                @row!.FirstSeenAt.ToString("yyyy-MM-dd HH:mm:ss")
+                                @Clock.Format(row!.FirstSeenAt)
                             </CellTemplate>
                         </DataTableColumn>
                         <DataTableColumn TData="InstallationDto" TValue="DateTimeOffset" Property="@(c => c.LastSeenAt)" Header="最近活跃">
                             <CellTemplate Context="row">
-                                @row!.LastSeenAt.ToString("yyyy-MM-dd HH:mm:ss")
+                                @Clock.Format(row!.LastSeenAt)
                             </CellTemplate>
                         </DataTableColumn>
                     </Columns>
@@ -164,6 +165,8 @@
         {
             return;
         }
+
+        await Clock.EnsureLoadedAsync();
 
         var appsResult = await Api.GetAsync<PagedResult<AppDto>>($"{ApiRoutes.ManagePrefix}/apps");
         if (appsResult.IsSuccess && appsResult.Data is not null)
