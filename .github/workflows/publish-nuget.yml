@@ -1,8 +1,11 @@
 name: Publish NuGet
 
-# 打 tag（如 v0.1.1）触发：构建 + 测试 → 6 RID AOT 更新器 → 内嵌打包
+# 打 tag（如 v1.0.1）触发：构建 + 测试 → 6 RID AOT 更新器 → 内嵌打包
 # → 推送 nuget.org → 创建 GitHub Release（附 nupkg 与说明）→ 追加 docs/RELEASES.md 发布记录并回提 main。
-# 需要仓库 Secret：NUGET_API_KEY（nuget.org 推送密钥）。
+# 发布鉴权：Trusted Publishing（无长期 API Key）——publish job 以 OIDC 换临时 key 推送。
+# 前置配置：nuget.org 账户页 → Trusted Publishing 注册策略（Owner=Atomlust /
+# Repository=AtomUpdate / Workflow File=publish-nuget.yml，Environment 留空）；
+# 仓库 Secret 仅需 NUGET_USER（nuget.org 个人资料页的用户名，非邮箱）。
 # 版本约束：tag 去掉 v 后必须等于 Directory.Build.props 的 <Version>，不一致直接失败。
 
 on:
@@ -14,7 +17,7 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 permissions:
-  contents: write
+  contents: read  # 顶级最小权限；publish job 按需提权（Release/回提 main/OIDC）
 
 jobs:
   check-version:
@@ -100,6 +103,9 @@ jobs:
     name: 打包并发布 AtomUpdate 到 nuget.org
     needs: [updater, build-test]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 创建 GitHub Release、回提 docs/RELEASES.md 到 main
+      id-token: write  # Trusted Publishing：向 nuget.org 出示 OIDC token 换临时 API key
     steps:
       - uses: actions/checkout@v5
         with:
@@ -185,14 +191,25 @@ jobs:
           } > release-notes.md
           cat release-notes.md
 
-      - name: 推送到 nuget.org
+      - name: 校验 NUGET_USER Secret
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_USER: ${{ secrets.NUGET_USER }}
         run: |
-          if [ -z "$NUGET_API_KEY" ]; then
-            echo "::error::缺少仓库 Secret NUGET_API_KEY（Settings → Secrets and variables → Actions → Repository secrets，nuget.org 账户页生成 API Key，scope=Upload）"
+          if [ -z "$NUGET_USER" ]; then
+            echo "::error::缺少仓库 Secret NUGET_USER（nuget.org 个人资料页显示的用户名，非邮箱）。Trusted Publishing 不再使用长期 NUGET_API_KEY，同时需在 nuget.org 账户页注册 Trusted Publishing 策略（Owner/Repository/Workflow File）。"
             exit 1
           fi
+
+      - name: NuGet 登录（OIDC → 临时 API key，1 小时有效）
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: 推送到 nuget.org
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
           for pkg in AtomUpdate.Core AtomUpdate.Abstractions AtomUpdate; do
             f="$(ls packages/${pkg}.*.nupkg)"
             echo ">> push $f"
