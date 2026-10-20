@@ -59,14 +59,16 @@ jobs:
           global-json-file: global.json
       - name: 安装 arm64 交叉编译工具链（linux-arm64 专属）
         if: matrix.rid == 'linux-arm64'
-        run: sudo apt-get update && sudo apt-get install -y clang gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+        run: sudo apt-get update && sudo apt-get install -y clang lld llvm gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
       - name: Publish
+        shell: bash  # Windows runner 默认 pwsh，bash 数组/条件语法需显式指定
         run: |
           args=(-p:PublishAot=true)
-          # x64 runner 交叉编译 linux-arm64：默认宿主链接器不识别 aarch64 目标，
-          # 须改用 aarch64 交叉 gcc 做编译+链接（NativeAOT 官方文档做法）
+          # x64 runner 交叉编译 linux-arm64：ILCompiler 无条件向编译器传 --target=<triple>（clang 语法），
+          # 须用 clang 编译 + lld 链接（LLVM 交叉零配置，bfd 会撞宿主链接器），
+          # gcc-aarch64-linux-gnu 提供目标 CRT（sysroot=/usr/aarch64-linux-gnu），llvm 提供 llvm-objcopy
           if [ "${{ matrix.rid }}" = "linux-arm64" ]; then
-            args+=(-p:CppCompilerAndLinker=aarch64-linux-gnu-gcc)
+            args+=(-p:CppCompilerAndLinker=clang -p:LinkerFlavor=lld -p:SysRoot=/usr/aarch64-linux-gnu)
           fi
           dotnet publish src/AtomUpdate.Updater/AtomUpdate.Updater.csproj -c Release -r ${{ matrix.rid }} "${args[@]}" -o artifacts/updater/${{ matrix.rid }}/native
       - uses: actions/upload-artifact@v4

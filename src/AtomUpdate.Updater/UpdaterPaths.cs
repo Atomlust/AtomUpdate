@@ -55,8 +55,14 @@ public static class UpdaterPaths
     public static string DefaultBackupDirectory(string appId, DateTimeOffset timestamp) =>
         Path.Combine(AtomUpdateRoot, "backup", Sanitize(appId), timestamp.ToString("yyyyMMddHHmmss"));
 
+    /// <summary>跨平台非法字符补充：Linux/macOS 的 Path.GetInvalidFileNameChars 不含 ':' 与 '\\'，
+    /// 但 state/{appId}/ 路径契约要求三平台产出相同目录名（SDK 补报按同一位置读取），统一并入黑名单。</summary>
+    private static readonly char[] ExtraInvalidChars = [':', '\\'];
+
     public static string Sanitize(string value) =>
         string.IsNullOrEmpty(value)
             ? "default"
-            : string.Join('_', value.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
+            : string.Join('_', value.Split(
+                Path.GetInvalidFileNameChars().Concat(ExtraInvalidChars).ToArray(),
+                StringSplitOptions.RemoveEmptyEntries));
 }

@@ -36,8 +36,14 @@ public static class PlatformPaths
         return path;
     }
 
+    /// <summary>跨平台非法字符补充：Linux/macOS 的 Path.GetInvalidFileNameChars 不含 ':' 与 '\\'，
+    /// 但 state/{appId}/ 路径契约要求三平台产出相同目录名（与 Updater 侧 UpdaterPaths.Sanitize 一致）。</summary>
+    private static readonly char[] ExtraInvalidChars = [':', '\\'];
+
     public static string Sanitize(string appId) =>
-        string.Join('_', appId.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
+        string.Join('_', appId.Split(
+            Path.GetInvalidFileNameChars().Concat(ExtraInvalidChars).ToArray(),
+            StringSplitOptions.RemoveEmptyEntries));
 
     /// <summary>SDK 缓存根（可被 Cache.CacheDirectory 覆盖）。</summary>
     public static string ResolveCacheRoot(string? configured) => configured ?? Path.Combine(AtomUpdateRoot, "cache");
