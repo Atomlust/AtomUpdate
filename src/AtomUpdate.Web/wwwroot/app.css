@@ -933,3 +933,39 @@ tbody tr:hover > td {
     color: var(--au-text);
     margin-bottom: 16px;
 }
+
+/* ── 启动占位与版本号 ───────────────────────────────────────────── */
+
+/* App.razor body 里的静态启动占位：prerender:false 时 WASM 激活前唯一可见内容，
+   由布局首渲染移除（BootSplashDismiss）。样式与登录卡品牌一致。 */
+.au-boot {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: var(--au-bg);
+    color: var(--au-text-tertiary);
+    font-size: 14px;
+    z-index: 9999;
+}
+
+.au-boot-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--au-text);
+    color: var(--au-bg);
+    font-weight: 700;
+    font-size: 15px;
+}
+
+/* 页脚版本号（MainLayout / 登录页）：v1.0.x (短哈希)，等宽数字便于比对 */
+.au-version {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+}

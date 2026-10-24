@@ -12,7 +12,6 @@ builder.Services.AddAtomUpdateApi(builder.Configuration, builder.Environment.Con
 
 builder.Services.AddAtomBlazorComponents();
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents();
 
 // DataProtection 在本工程仅服务于 UseAntiforgery 的 SSR 表单令牌；认证为无状态 JWT
@@ -79,7 +78,6 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode()
     .AddInteractiveWebAssemblyRenderMode()
     .AddAdditionalAssemblies(typeof(AtomUpdate.Web.Client._Imports).Assembly);
 

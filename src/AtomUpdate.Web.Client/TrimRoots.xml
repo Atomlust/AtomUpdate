@@ -45,7 +45,8 @@
   这些 record 是 internal 可见性，但根描述符按 fullname 匹配，与可见性无关，
   故下列条目能精确命中。类型名随库版本变动，改库升级时须同步核对
   （库源码 D:/Source/AtomBlazorUI 的 Internal/InteropPayloads.cs 与
-  Internal/ComponentInteropPayloads.cs 是权威清单）。
+  Internal/ComponentInteropPayloads.cs 是权威清单；0.6.0 已复核与 0.4.0
+  载荷类型完全一致：Primitives 10 + 主包 7）。
 
   已实测否决的方案：TrimMode=partial——不删未引用程序集，AngleSharp/Markdig/
   HtmlSanitizer/FluentValidation/Ical.Net 全部回来（raw 19MB+），程序集级

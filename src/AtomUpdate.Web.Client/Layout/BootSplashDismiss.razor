@@ -1,0 +1,22 @@
+@inject IJSRuntime JS
+
+@* 移除 App.razor body 里的静态启动占位 #au-boot（prerender:false 时 WASM 激活前显示）。
+   放在两个布局（Main/Bare）的根，保证任何页面进入交互态后占位即被清掉。 *@
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync("eval", "document.getElementById('au-boot')?.remove()");
+        }
+        catch (JSDisconnectedException)
+        {
+            // 页面关闭导致线路断开：占位随页面一起销毁，无需处理
+        }
+    }
+}

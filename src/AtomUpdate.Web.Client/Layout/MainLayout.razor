@@ -67,11 +67,13 @@
         </div>
 
         <footer class="au-footer">
-            <div>AtomUpdate 管理后台</div>
-            <div class="au-meta">@Origin · @(RendererInfo.IsInteractive ? "交互已就绪" : "静态渲染（SSR）")</div>
+            <div>AtomUpdate 管理后台 <span class="au-version">@AppVersion.Display</span></div>
+            <div class="au-meta">@Origin</div>
         </footer>
     </SidebarInset>
 </SidebarProvider>
+
+<BootSplashDismiss />
 
 <Dialog @bind-Open="_pwdDialogOpen">
     <DialogContent Class="au-dialog">
