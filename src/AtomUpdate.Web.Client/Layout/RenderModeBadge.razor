@@ -1,0 +1,15 @@
+@* 实际渲染模式显示（紧跟页脚版本号之后）：Auto 模式下首访走 Server 线路、
+   WASM 资源缓存后切 WebAssembly，用户可据此判断当前页面由哪端驱动。
+   RendererInfo 用 ComponentBase 内置属性（.NET 9+，激活时由框架注入）：
+   Server / WebAssembly / Static；prerender:false 下不会有 Static，防御性兜底而已。 *@
+<span class="au-rendermode">@Resolve()</span>
+
+@code {
+    private string Resolve() => RendererInfo.Name switch
+    {
+        "Server" => "Server",
+        "WebAssembly" => "WebAssembly",
+        "Static" => "静态 SSR",
+        var other => other
+    };
+}

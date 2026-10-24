@@ -18,15 +18,15 @@
        data-default-dark="false"：无已存主题时固定浅色（本站只出浅色令牌，不跟随系统暗色）。 *@
     <script src="@Assets["_content/AtomBlazor/js/theme-init.js"]" data-default-dark="false"></script>
     <ImportMap />
-    @* 纯 WASM 交互（prerender:false），不用 InteractiveAuto/Server：
-       1) Auto 模式下 SSR 静态 DOM 可输入但无模型接收，线路/WASM 激活后的首次
-          重渲染会把激活前输入的值清空（生产实测：SignalR 协商 20s，用户输入
-          全部丢失 → 提交空模型 → Api 返回 'Email' must not be empty）；
-          prerender:false 让表单在可交互前不出现，从构造上消灭该问题。
-       2) 去掉 Server 线路即去掉 SignalR/WebSocket 依赖（弱网/反代下协商可长达
-          20s 且不可控），交互就绪时间 = WASM 启动时间，确定性一致。
-       激活前的占位 #au-boot 由布局首渲染移除（见 BootSplashDismiss）。 *@
-    <HeadOutlet @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
+    @* InteractiveAuto（prerender:false）。此前试过纯 WASM，现按产品要求回归 Auto：
+       Auto 首访走 Server 线路（无需先下 WASM），资源缓存后切 WASM。
+       prerender:false 保留——输入丢失 Bug（生产实测）的根源是 SSR 静态 DOM
+       可输入但无模型接收，激活后首次重渲染把激活前输入清空；禁预渲染后
+       表单在可交互前不出现，该问题从构造上不可能发生，与 Auto/WASM 无关。
+       激活前的占位 #au-boot 由布局首渲染移除（见 BootSplashDismiss）。
+       页脚显示实际渲染模式（RenderModeBadge，读 RendererInfo），便于用户判断当前
+       运行在 Server 还是 WebAssembly。 *@
+    <HeadOutlet @rendermode="new InteractiveAutoRenderMode(prerender: false)" />
 </head>
 
 <body>
@@ -34,7 +34,7 @@
         <span class="au-boot-mark">A</span>
         <span>AtomUpdate 正在加载…</span>
     </div>
-    <Routes @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
+    <Routes @rendermode="new InteractiveAutoRenderMode(prerender: false)" />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 
