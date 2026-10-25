@@ -3,12 +3,13 @@
 @inject ToastService Toast
 @inject NavigationManager Navigation
 
-<PageTitle>新建草稿版本 - AtomUpdate 管理后台</PageTitle>
+<PageTitle>新建版本 - AtomUpdate 管理后台</PageTitle>
 
-<PageContainer Title="新建草稿版本" Description="为选定应用创建版本草稿：填写 full 包地址与 SHA-256，草稿在版本列表中再发布到通道">
+<PageContainer Title="新建版本" Description="为选定应用创建版本草稿：填写 full 包地址与 SHA-256；勾选通道后可直接发布，否则在版本列表中再发布">
     <Extra>
         <div class="au-form-actions">
-            <Button Variant="ButtonVariant.Default" OnClick="SaveAsync" Disabled="_saving">@(_saving ? "创建中…" : "创建草稿")</Button>
+            <Button Variant="ButtonVariant.Default" OnClick="@(() => SaveAsync(publish: true))" Disabled="_saving">@(_saving ? "保存中…" : "创建并发布")</Button>
+            <Button Variant="ButtonVariant.Outline" OnClick="@(() => SaveAsync(publish: false))" Disabled="_saving">仅存草稿</Button>
             <Button Variant="ButtonVariant.Outline" OnClick="Cancel">取消</Button>
         </div>
     </Extra>
@@ -195,6 +196,21 @@
             </div>
 
             <div>
+                <span class="au-field-label">发布到通道（"创建并发布"时至少勾选一个；不发布可全部留空）</span>
+                <div class="au-check-grid">
+                    @foreach (var (value, label) in AllChannels)
+                    {
+                        <div class="au-check">
+                            <Checkbox Id="@($"rc-ch-{value}")"
+                                      Checked="@_channels.Contains(value)"
+                                      CheckedChanged="on => ToggleChannel(value, on)" />
+                            <label for="@($"rc-ch-{value}")">@label</label>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div>
                 <p class="au-form-hint">每行一条，行内支持 Markdown；留空的小节不会显示在版本说明中。</p>
                 <div class="au-notes-grid">
                     <Field>
@@ -227,6 +243,15 @@
 </PageContainer>
 
 @code {
+    private static readonly (UpdateChannel Value, string Label)[] AllChannels =
+    [
+        (UpdateChannel.Dev, "开发版"),
+        (UpdateChannel.Preview, "预览版"),
+        (UpdateChannel.Beta, "公测版"),
+        (UpdateChannel.Rc, "候选版"),
+        (UpdateChannel.Stable, "正式稳定版")
+    ];
+
     [Parameter, SupplyParameterFromQuery(Name = "projectId")]
     public long? QueryProjectId { get; set; }
 
@@ -241,6 +266,7 @@
     private bool _saving;
     private bool _uploading;
     private string? _uploadedFileName;
+    private UpdateChannel[] _channels = [];
     private FormModel _form = new();
 
     private string ProjectLabel => _projects.FirstOrDefault(p => p.Id == _projectId) is { } p ? $"{p.Name}（{p.Key}）" : $"项目 {_projectId}";
@@ -365,7 +391,14 @@
         }
     }
 
-    private async Task SaveAsync()
+    private void ToggleChannel(UpdateChannel channel, bool isChecked)
+    {
+        _channels = isChecked
+            ? _channels.Append(channel).Distinct().ToArray()
+            : _channels.Where(c => c != channel).ToArray();
+    }
+
+    private async Task SaveAsync(bool publish)
     {
         if (ReleaseScope.TryCreate(_projectId, _appId) is not { } scope)
         {
@@ -382,6 +415,12 @@
         if (string.IsNullOrWhiteSpace(_form.AssetUrl) || string.IsNullOrWhiteSpace(_form.Sha256))
         {
             Toast.Error("请先上传版本包文件");
+            return;
+        }
+
+        if (publish && _channels.Length == 0)
+        {
+            Toast.Error("请至少选择一个通道，或改用「仅存草稿」");
             return;
         }
 
@@ -410,14 +449,31 @@
                     ],
                     Notes = notes
                 });
-            if (!result.IsSuccess)
+            if (!result.IsSuccess || result.Data is not { } created)
             {
                 Toast.Error(result.ErrorMessage ?? "创建失败", "创建失败");
                 return;
             }
 
-            Toast.Success("草稿已创建");
-            Navigation.NavigateTo(result.Data is { } created ? scope.DetailUrl(created.Id) : scope.ListUrl);
+            if (!publish)
+            {
+                Toast.Success("草稿已创建");
+                Navigation.NavigateTo(scope.DetailUrl(created.Id));
+                return;
+            }
+
+            var published = await Api.SendAsync<ReleaseDto>(HttpMethod.Post, scope.ApiUrl(created.Id, "/publish"),
+                new ReleasePublishRequest { Channels = _channels });
+            if (!published.IsSuccess)
+            {
+                // 草稿已生成：留在详情页可手动重试发布，避免重复创建同版本草稿
+                Toast.Error(published.ErrorMessage ?? "发布失败", "草稿已创建但发布失败");
+                Navigation.NavigateTo(scope.DetailUrl(created.Id));
+                return;
+            }
+
+            Toast.Success($"已创建并发布 {_form.Version}（{string.Join("、", _channels)}）");
+            Navigation.NavigateTo(scope.DetailUrl(created.Id));
         }
         finally
         {
