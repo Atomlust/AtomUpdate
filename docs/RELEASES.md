@@ -2,6 +2,17 @@
 
 > 由 Publish NuGet 工作流在每次 tag 发布后自动追加，最新在上。
 
+## v1.0.7 — 2026-10-25
+
+- 提交: c777a03
+- 发布: [GitHub Release](https://github.com/Atomlust/AtomUpdate/releases/tag/v1.0.7) · [nuget.org](https://www.nuget.org/packages/AtomUpdate/1.0.7)
+- 包:
+  - `AtomUpdate.1.0.7.nupkg` (34M, sha512:93d2fb1e549b6f69)
+  - `AtomUpdate.Abstractions.1.0.7.nupkg` (16K, sha512:4784968c0f10b0b8)
+  - `AtomUpdate.Core.1.0.7.nupkg` (24K, sha512:25c86be175271ea0)
+- 更新器内嵌 RID: win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64
+
+
 ## v1.0.6 — 2026-10-24
 
 - 提交: 9a6ac16
