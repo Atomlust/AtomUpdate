@@ -3,7 +3,7 @@
 # 分发、Tailwind 产物已在包内编译好），镜像内无需库源码、无需 Node 阶段：
 #   docker build -f src/AtomUpdate.Web/Dockerfile -t atomupdate-web .
 #   docker compose up -d --build   # compose 的 build.context 为 .
-FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.2 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3 AS build
 WORKDIR /src
 
 # 先拷工程文件以利用 NuGet 还原缓存层（还原闭包：
@@ -28,10 +28,10 @@ COPY Directory.Build.targets ./
 RUN dotnet publish src/AtomUpdate.Web/AtomUpdate.Web.csproj -c Release -r linux-musl-x64 -o /app/publish /p:UseAppHost=false \
     && rm -rf /app/publish/BlazorDebugProxy
 
-# 运行基镜像注意：aspnet 镜像用运行时版本号（11.0.0-rc.2），SDK 镜像才用
-# SDK 带号（11.0.100-rc.2）——两者不可混用（曾误写 11.0.100-rc.2-alpine3.24，
+# 运行基镜像注意：aspnet 镜像用运行时版本号（11.0.0-rc.3），SDK 镜像才用
+# SDK 带号（11.0.100-rc.3）——两者不可混用（曾误写 11.0.100-rc.3-alpine3.24，
 # MCR 无此标签，拉取即失败）
-FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.2-alpine3.24 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.3-alpine3.24 AS runtime
 WORKDIR /app
 EXPOSE 8080
 ENV ASPNETCORE_HTTP_PORTS=8080
