@@ -12,5 +12,8 @@ public enum PackageType
     [JsonStringEnumMemberName("appimage")]
     AppImage,
     Deb,
-    Rpm
+    Rpm,
+
+    /// <summary>Android APK 单文件（原样上传，不重新压缩，保签名有效）。</summary>
+    Apk
 }

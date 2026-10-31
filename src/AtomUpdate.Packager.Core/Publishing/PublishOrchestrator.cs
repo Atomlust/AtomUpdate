@@ -18,7 +18,7 @@ public sealed class PublishOrchestrator
     public PublishOrchestrator(IAtomUpdateApiClient api, IReadOnlyList<IPackager>? packagers = null)
     {
         _api = api;
-        _packagers = packagers ?? new IPackager[] { new ZipPackager(), new InnoPackager() };
+        _packagers = packagers ?? new IPackager[] { new ZipPackager(), new InnoPackager(), new ApkPackager() };
     }
 
     public async Task<PublishResult> ExecuteAsync(PublishPlan plan,

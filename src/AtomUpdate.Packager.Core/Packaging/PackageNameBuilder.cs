@@ -30,6 +30,7 @@ public static class PackageNameBuilder
         PackageType.AppImage => ".AppImage",
         PackageType.Deb => ".deb",
         PackageType.Rpm => ".rpm",
+        PackageType.Apk => ".apk",
         _ => throw new PackagerException(PackagerErrorCodes.UnsupportedPackageType,
             $"不支持的包类型：{packageType}")
     };

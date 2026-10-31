@@ -134,7 +134,7 @@ public static class CliParser
           --source <dir>        发布目录
           --platform <p>        windows/macos/linux/ios/android/harmony
           --arch <a>            x64/arm64/x86（可重复）
-          --type <t>            zip/exe（缺省 zip）
+          --type <t>            zip/exe/apk（缺省 zip）
           --output <dir>        输出目录（缺省发布目录同级 packs/）
           --exclude <glob>      排除模式（可重复）
           --from-version <ver>  增量起点版本（配合 --baseline）

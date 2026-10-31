@@ -45,8 +45,9 @@ internal static class PackCommand
         {
             PackageType.Zip => new ZipPackager(),
             PackageType.Exe => new InnoPackager(),
+            PackageType.Apk => new ApkPackager(),
             _ => throw new PackagerException(PackagerErrorCodes.UnsupportedPackageType,
-                $"pack 仅支持 zip/exe，实际：{packageType.ToString().ToLowerInvariant()}")
+                $"pack 仅支持 zip/exe/apk，实际：{packageType.ToString().ToLowerInvariant()}")
         };
 
         var deltaGenerator = new FileDeltaGenerator();

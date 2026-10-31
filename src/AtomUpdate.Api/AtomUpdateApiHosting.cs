@@ -28,6 +28,14 @@ public static class AtomUpdateApiHosting
         services.AddValidatorsFromAssemblyContaining<CheckRequestValidator>();
         services.AddOpenApi();
 
+        // 上传体积上限：Kestrel 默认 30MB，而 Android APK 常 30MB 以上，会被直接 413 拒绝。
+        // 默认放宽到 512MB，可用 Storage:MaxUploadBytes（字节）覆盖；表单部分同口径放宽。
+        var maxUploadBytes = configuration.GetValue<long?>("Storage:MaxUploadBytes") ?? 512L * 1024 * 1024;
+        services.Configure<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>(
+            options => options.Limits.MaxRequestBodySize = maxUploadBytes);
+        services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(
+            options => options.MultipartBodyLengthLimit = maxUploadBytes);
+
         // 数据层：按 Database:Provider 装配（sqlite 默认 | npgsql，docs/11 §3.1）+ 请求级租户上下文 + IdGen 主键
         // （库仅注册具体 IdGenerator，需桥接接口）；主键为 IdGen 应用侧发号，与 provider 无关
         var provider = DatabaseProviders.Resolve(configuration);
