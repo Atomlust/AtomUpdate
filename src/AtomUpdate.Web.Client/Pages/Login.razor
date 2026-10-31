@@ -1,8 +1,10 @@
 @page "/login"
 @layout BareLayout
+@implements IAsyncDisposable
 @inject ApiClient Api
 @inject NavigationManager Navigation
 @inject ToastService Toast
+@inject IJSRuntime JS
 
 <PageTitle>登录 - AtomUpdate 管理后台</PageTitle>
 
@@ -57,6 +59,8 @@
                         Disabled="_loading">
                     @(_loading ? "登录中…" : "登录")
                 </Button>
+                @* 版本信息放在卡片内：页面较长/窗口较矮时页脚会被挤出视野，登录排障时先看这里 *@
+                <div class="au-login-meta">@AppVersion.Display · <RenderModeBadge /></div>
             </EditForm>
         </div>
     </div>
@@ -70,12 +74,22 @@
     private LoginModel _model = new();
     private bool _loading;
     private bool _setupRequired;
+    private IJSObjectReference? _inputsJs;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender)
         {
             return;
+        }
+
+        try
+        {
+            _inputsJs = await JS.InvokeAsync<IJSObjectReference>("import", "./js/login-inputs.js");
+        }
+        catch (JSException)
+        {
+            // 模块加载失败时不阻断登录，退回仅用模型值
         }
 
         // 空库（未初始化）时在登录页提示进入设置向导；查询失败静默跳过（不影响正常登录）
@@ -93,14 +107,18 @@
         StateHasChanged();
         try
         {
-            if (string.IsNullOrWhiteSpace(_model.Email) || string.IsNullOrWhiteSpace(_model.Password))
+            var (email, password) = await ResolveCredentialsAsync();
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
             {
-                // 模型未收到输入时给出中文提示，避免直出 Api 的 FluentValidation 英文消息
+                // 模型与 DOM 都为空时给出中文提示，避免直出 Api 的 FluentValidation 英文消息
                 Toast.Error("请填写用户名或邮箱与密码", "登录失败");
                 return;
             }
 
-            var result = await Api.LoginAsync(new LoginRequest { Email = _model.Email, Password = _model.Password });
+            _model.Email = email;
+            _model.Password = password;
+
+            var result = await Api.LoginAsync(new LoginRequest { Email = email, Password = password });
             if (result.IsSuccess)
             {
                 Navigation.NavigateTo("/", replace: true);
@@ -113,6 +131,53 @@
         {
             _loading = false;
             StateHasChanged();
+        }
+    }
+
+    /// <summary>模型没拿到值（浏览器自动填充/密码管理器不触发 input/change）时，从 DOM 兜底读取。</summary>
+    private async Task<(string Email, string Password)> ResolveCredentialsAsync()
+    {
+        var email = _model.Email;
+        var password = _model.Password;
+        if (!string.IsNullOrWhiteSpace(email) && !string.IsNullOrWhiteSpace(password))
+        {
+            return (email, password);
+        }
+
+        if (_inputsJs is not null)
+        {
+            try
+            {
+                var dom = await _inputsJs.InvokeAsync<string?[]>("readLoginValues", "login-email", "login-password");
+                if (dom is { Length: 2 })
+                {
+                    email = string.IsNullOrWhiteSpace(email) ? dom[0] ?? "" : email;
+                    password = string.IsNullOrWhiteSpace(password) ? dom[1] ?? "" : password;
+                }
+            }
+            catch (JSException)
+            {
+                // DOM 读取失败时保持模型值
+            }
+        }
+
+        return (email, password);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_inputsJs is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _inputsJs.DisposeAsync();
+        }
+        catch (JSException)
+        {
+            // 线路已断开（页面已卸载）时无需处理
         }
     }
 

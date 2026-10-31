@@ -905,6 +905,14 @@ tbody tr:hover > td {
     margin: 4px 0 16px;
 }
 
+/* 卡片内的版本信息：页脚在长页面/矮窗口下会被挤出视野，排障先看这里 */
+.au-login-meta {
+    margin-top: 16px;
+    text-align: center;
+    color: var(--au-text-tertiary);
+    font-size: 12px;
+}
+
 .au-login-footer {
     text-align: center;
     color: var(--au-text-tertiary);
