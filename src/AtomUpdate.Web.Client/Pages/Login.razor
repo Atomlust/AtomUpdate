@@ -28,9 +28,13 @@
                 <Field>
                     <FieldLabel For="login-email">用户名或邮箱</FieldLabel>
                     <FieldContent>
+                        @* Immediate：默认 OnChange 只在失焦/回车回写，浏览器自动填充或线路抖动时
+                           事件丢失会让模型停在空串（表现为"填了却说 Email 不能为空"）。 *@
                         <Input Id="login-email"
                                Type="InputType.Text"
                                @bind-Value="_model.Email"
+                               UpdateTiming="UpdateTiming.Immediate"
+                               AdditionalAttributes="@(new Dictionary<string, object> { ["autocomplete"] = "username" })"
                                Placeholder="用户名或邮箱"
                                Disabled="_loading" />
                     </FieldContent>
@@ -41,6 +45,8 @@
                         <Input Id="login-password"
                                Type="InputType.Password"
                                @bind-Value="_model.Password"
+                               UpdateTiming="UpdateTiming.Immediate"
+                               AdditionalAttributes="@(new Dictionary<string, object> { ["autocomplete"] = "current-password" })"
                                Placeholder="密码"
                                Disabled="_loading" />
                     </FieldContent>
@@ -87,6 +93,13 @@
         StateHasChanged();
         try
         {
+            if (string.IsNullOrWhiteSpace(_model.Email) || string.IsNullOrWhiteSpace(_model.Password))
+            {
+                // 模型未收到输入时给出中文提示，避免直出 Api 的 FluentValidation 英文消息
+                Toast.Error("请填写用户名或邮箱与密码", "登录失败");
+                return;
+            }
+
             var result = await Api.LoginAsync(new LoginRequest { Email = _model.Email, Password = _model.Password });
             if (result.IsSuccess)
             {
