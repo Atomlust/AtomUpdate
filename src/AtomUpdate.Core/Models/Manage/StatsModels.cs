@@ -100,6 +100,10 @@ public sealed class CheckLogDto
 
     public UpdatePlatform Platform { get; init; }
     public UpdateArch Arch { get; init; }
+
+    /// <summary>本次检查请求的通道（缺省 stable 由服务端补齐后落库；历史行为 null）。</summary>
+    public UpdateChannel? Channel { get; init; }
+
     public required string CurrentVersion { get; init; }
     public string? LatestVersion { get; init; }
     public required bool HasUpdate { get; init; }

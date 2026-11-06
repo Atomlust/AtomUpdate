@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace AtomUpdate.Tests.Api;
 
-/// <summary>检测记录（更新检查逐条快照）：列表字段口径（时间戳/IP/当前版本/应用标识）、筛选与每应用 500 条上限。</summary>
+/// <summary>检测记录（更新检查逐条快照）：列表字段口径（时间戳/通道/IP/当前版本/应用标识）、筛选与每应用 500 条上限。</summary>
 [Collection("api")]
 public class CheckLogTests(ApiFixture fixture)
 {
@@ -25,8 +25,8 @@ public class CheckLogTests(ApiFixture fixture)
         await fixture.QueryAsync(tenantId, db =>
         {
             db.UpdateCheckLogs.AddRange(
-                MakeLog(scenario, installation: "inst-a", version: "1.0.0", ip: "203.0.113.7"),
-                MakeLog(scenario, installation: "inst-b", version: "1.1.0", ip: "203.0.113.8"),
+                MakeLog(scenario, installation: "inst-a", version: "1.0.0", ip: "203.0.113.7", channel: UpdateChannel.Beta),
+                MakeLog(scenario, installation: "inst-b", version: "1.1.0", ip: "203.0.113.8", channel: UpdateChannel.Stable),
                 MakeLog(scenario, installation: "inst-c", version: "2.0.0", ip: null));
             return Task.FromResult(db.SaveChanges());
         });
@@ -37,11 +37,12 @@ public class CheckLogTests(ApiFixture fixture)
         Assert.True(list.Data.Total >= 3);
         var newest = list.Data.Items[0];
 
-        // 快照字段：时间戳、IP、当前版本、应用标识（AppName 冗余展示）；最新一条为 inst-c（无 IP）
+        // 快照字段：时间戳、IP、当前版本、应用标识（AppName 冗余展示）；最新一条为 inst-c（无 IP、无通道）
         Assert.Equal("2.0.0", newest.CurrentVersion);
         Assert.Equal(scenario.AppBusinessId, newest.AppKey);
         Assert.False(string.IsNullOrWhiteSpace(newest.AppName));
         Assert.Null(newest.ClientIp);
+        Assert.Null(newest.Channel);
         Assert.True(newest.CheckedAt > DateTimeOffset.UtcNow.AddMinutes(-5));
 
         // keyword：按 IP 模糊匹配
@@ -50,6 +51,18 @@ public class CheckLogTests(ApiFixture fixture)
             .Expect(HttpStatusCode.OK);
         Assert.Equal(1, byIp.Data.Total);
         Assert.Equal("1.0.0", byIp.Data.Items[0].CurrentVersion);
+
+        // channel：wire 值 camelCase 小写，只回该通道的记录
+        var byChannel = (await fixture.SendJsonAsync<PagedResult<CheckLogDto>>(HttpMethod.Get,
+            $"{ChecksPath}?appId={scenario.AppId}&channel=beta", bearer: scenario.AdminToken))
+            .Expect(HttpStatusCode.OK);
+        Assert.Equal(1, byChannel.Data.Total);
+        Assert.Equal(UpdateChannel.Beta, byChannel.Data.Items[0].Channel);
+
+        // 非法通道值：400（与版本列表 arch/status 过滤同口径）
+        var badChannel = await fixture.SendJsonAsync<PagedResult<CheckLogDto>>(HttpMethod.Get,
+            $"{ChecksPath}?channel=nightly", bearer: scenario.AdminToken);
+        Assert.Equal(HttpStatusCode.BadRequest, badChannel.Status);
     }
 
     [Fact]
@@ -84,7 +97,8 @@ public class CheckLogTests(ApiFixture fixture)
         Assert.Contains("1.0.520", remaining);
     }
 
-    private static UpdateCheckLog MakeLog(Scenario scenario, string installation, string version, string? ip) =>
+    private static UpdateCheckLog MakeLog(Scenario scenario, string installation, string version, string? ip,
+        UpdateChannel? channel = null) =>
         new()
         {
             TenantId = scenario.TenantId,
@@ -94,6 +108,7 @@ public class CheckLogTests(ApiFixture fixture)
             AppKey = scenario.AppBusinessId,
             Platform = UpdatePlatform.Windows,
             Arch = UpdateArch.X64,
+            Channel = channel,
             CurrentVersion = version,
             ClientIp = ip,
             CheckedAt = DateTimeOffset.UtcNow

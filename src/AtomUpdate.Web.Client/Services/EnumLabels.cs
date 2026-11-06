@@ -24,6 +24,19 @@ public static class EnumLabels
         _ => "x64"
     };
 
+    /// <summary>通道预设（与 UpdateChannel 枚举一一对应，顺序即展示顺序）。</summary>
+    public static readonly (UpdateChannel Value, string Label)[] Channels =
+    [
+        (UpdateChannel.Dev, "开发版"),
+        (UpdateChannel.Preview, "预览版"),
+        (UpdateChannel.Beta, "公测版"),
+        (UpdateChannel.Rc, "候选版"),
+        (UpdateChannel.Stable, "正式稳定版")
+    ];
+
+    public static string Channel(UpdateChannel channel) =>
+        Channels.FirstOrDefault(c => c.Value == channel).Label ?? channel.ToString();
+
     /// <summary>一条版本的包架构概览（去重后的顿号列表）。</summary>
     public static string Archs(IEnumerable<ReleaseAssetDto> assets)
     {

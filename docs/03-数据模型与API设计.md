@@ -287,7 +287,7 @@ GET             /api/manage/stats/installations             （安装实例分�
 GET             /api/manage/stats/installations/summary     （按版本/通道汇总）
 GET             /api/manage/stats/downloads/summary         （下载汇总）
 GET             /api/manage/stats/checks/summary            （检查汇总）
-GET             /api/manage/stats/checks                    （检查日志分页，后台"检查日志"页）
+GET             /api/manage/stats/checks                    （检查日志分页，可按项目/应用/通道/关键字筛选；后台"检测记录"页）
 ```
 
 > **鉴权规则**：`/api/check` 与上报端点（`/api/report/*`、`/api/stats/*`）**公开**——匿名请求按请求体 `projectKey` 跨租户匹配（0 命中 → 404，多重命中 → 401，不泄露存在性与归属），JWT 会话按 tenant_id 声明租户内过滤；release/上传端点统一 **Manage 策略**（JWT Bearer，调用方为打包工具登录会话与管理后台）。

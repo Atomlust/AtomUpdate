@@ -6,7 +6,7 @@
 
 <PageTitle>检测记录 - AtomUpdate 管理后台</PageTitle>
 
-<PageContainer Title="检测记录" Description="客户端更新检查逐条快照（每应用仅保留最近 500 条）：时间戳、IP、当前版本与应用标识">
+<PageContainer Title="检测记录" Description="客户端更新检查逐条快照（每应用仅保留最近 500 条）：时间戳、通道、IP、当前版本与应用标识">
     <ChildContent>
         <form class="au-query" @onsubmit="OnSearchAsync" @onsubmit:preventDefault>
             <div class="au-field">
@@ -21,6 +21,21 @@
                             <SelectItem Value="@((long?)app.Id)" Text="@($"{app.Name}（{app.AppId}）")" TValue="long?">
                                 @($"{app.Name}（{app.AppId}）")
                             </SelectItem>
+                        }
+                    </SelectContent>
+                </Select>
+            </div>
+            <div class="au-field">
+                <span class="au-field-label">通道</span>
+                <Select TValue="UpdateChannel?" Value="_channel" ValueChanged="OnChannelChangedAsync">
+                    <SelectTrigger>
+                        <SelectValue Placeholder="全部通道" TValue="UpdateChannel?" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem Value="@((UpdateChannel?)null)" Text="全部通道" TValue="UpdateChannel?">全部通道</SelectItem>
+                        @foreach (var option in EnumLabels.Channels)
+                        {
+                            <SelectItem Value="@((UpdateChannel?)option.Value)" Text="@option.Label" TValue="UpdateChannel?">@option.Label</SelectItem>
                         }
                     </SelectContent>
                 </Select>
@@ -51,6 +66,18 @@
                 <DataTableColumn TData="CheckLogDto" TValue="string" Property="@(c => c.AppKey)" Header="应用">
                     <CellTemplate Context="row">
                         @(row!.AppName is { Length: > 0 } name ? $"{name}（{row.AppKey}）" : row.AppKey)
+                    </CellTemplate>
+                </DataTableColumn>
+                <DataTableColumn TData="CheckLogDto" TValue="UpdateChannel?" Property="@(c => c.Channel)" Header="通道">
+                    <CellTemplate Context="row">
+                        @if (row!.Channel is { } channel)
+                        {
+                            <Badge Variant="BadgeVariant.Outline">@EnumLabels.Channel(channel)</Badge>
+                        }
+                        else
+                        {
+                            <text>—</text>
+                        }
                     </CellTemplate>
                 </DataTableColumn>
                 <DataTableColumn TData="CheckLogDto" TValue="string" Property="@(c => c.CurrentVersion)" Header="当前版本" />
@@ -96,6 +123,7 @@
     private List<CheckLogDto> _items = [];
     private int _total;
     private long? _appId;
+    private UpdateChannel? _channel;
     private string _keyword = "";
     private bool _loading;
     private int _page = 1;
@@ -127,9 +155,16 @@
         return LoadAsync(1);
     }
 
+    private Task OnChannelChangedAsync(UpdateChannel? channel)
+    {
+        _channel = channel;
+        return LoadAsync(1);
+    }
+
     private Task ResetFiltersAsync()
     {
         _appId = null;
+        _channel = null;
         _keyword = "";
         return LoadAsync(1);
     }
@@ -145,6 +180,12 @@
             if (_appId is { } appId)
             {
                 query.Add($"appId={appId}");
+            }
+
+            if (_channel is { } channel)
+            {
+                // wire 值为 camelCase 全小写（dev/preview/beta/rc/stable），与服务端枚举名大小写不敏感绑定一致
+                query.Add($"channel={channel.ToString().ToLowerInvariant()}");
             }
 
             if (!string.IsNullOrWhiteSpace(_keyword))

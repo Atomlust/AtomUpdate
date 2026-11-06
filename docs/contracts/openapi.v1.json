@@ -1605,6 +1605,16 @@
             }
           },
           {
+            "name": "channel",
+            "in": "query",
+            "schema": {
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          {
             "name": "keyword",
             "in": "query",
             "schema": {
@@ -2760,6 +2770,16 @@
           },
           "arch": {
             "$ref": "#/components/schemas/UpdateArch"
+          },
+          "channel": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UpdateChannel"
+              }
+            ]
           },
           "currentVersion": {
             "type": "string"

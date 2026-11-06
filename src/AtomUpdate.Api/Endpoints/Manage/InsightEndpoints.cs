@@ -1,7 +1,9 @@
 using AtomUpdate.Api.Cache;
 using AtomUpdate.Api.Data;
 using AtomUpdate.Api.Data.Entities;
+using AtomUpdate.Core.Constants;
 using AtomUpdate.Core.Enums;
+using AtomUpdate.Core.Models;
 using AtomUpdate.Core.Models.Manage;
 using AtomUpdate.Core.Serialization;
 using Microsoft.EntityFrameworkCore;
@@ -241,13 +243,31 @@ internal static class InsightEndpoints
         }
     }
 
-    /// <summary>检测记录逐条列表（时间倒序）：可选项目/应用筛选与应用标识、版本、IP 模糊匹配；
+    /// <summary>检测记录逐条列表（时间倒序）：可选项目/应用/通道筛选与应用标识、版本、IP 模糊匹配；
     /// 应用删除后日志保留（快照设计），AppName 为空时前端退化为 AppKey 展示。</summary>
     private static async Task<IResult> CheckLogsAsync(AtomUpdateDbContext db, long? projectId, long? appId,
-        string? keyword, int? page, int? pageSize, CancellationToken ct)
+        string? channel, string? keyword, int? page, int? pageSize, CancellationToken ct)
     {
         var (p, size) = ManageHelpers.Pager(page, pageSize);
         var query = db.UpdateCheckLogs.AsNoTracking();
+
+        // 通道过滤走字符串 + 忽略大小写解析（与 ReleaseEndpoints 的 arch/status 过滤同口径：
+        // minimal API 的枚举绑定区分大小写，wire 值 camelCase 会绑不上）
+        if (!string.IsNullOrWhiteSpace(channel))
+        {
+            if (!Enum.TryParse<UpdateChannel>(channel, ignoreCase: true, out var parsed) ||
+                !Enum.IsDefined(parsed))
+            {
+                return Results.BadRequest(new ErrorResponse
+                {
+                    Code = ErrorCodes.InvalidRequest,
+                    Message = $"channel 取值非法：{channel}"
+                });
+            }
+
+            query = query.Where(l => l.Channel == parsed);
+        }
+
         if (appId is { } aid)
         {
             query = query.Where(l => l.AppId == aid);
@@ -281,6 +301,7 @@ internal static class InsightEndpoints
                 l.AppKey,
                 l.Platform,
                 l.Arch,
+                l.Channel,
                 l.CurrentVersion,
                 l.LatestVersion,
                 l.HasUpdate,
@@ -300,6 +321,7 @@ internal static class InsightEndpoints
                 AppName = l.AppName,
                 Platform = l.Platform,
                 Arch = l.Arch,
+                Channel = l.Channel,
                 CurrentVersion = l.CurrentVersion,
                 LatestVersion = l.LatestVersion,
                 HasUpdate = l.HasUpdate,
