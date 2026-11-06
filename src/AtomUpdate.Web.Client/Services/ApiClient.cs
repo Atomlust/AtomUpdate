@@ -75,7 +75,11 @@ public sealed class ApiClient(IHttpClientFactory factory, AuthState auth, Naviga
 
     public async Task<ApiResult<T>> SendAsync<T>(HttpMethod method, string path, object? body = null)
     {
+        // 先等登录态就绪：首屏请求抢在 token 从 localStorage 读出前发出会带不上 Authorization 头
+        await auth.EnsureReadyAsync();
+
         using var request = new HttpRequestMessage(method, path.TrimStart('/'));
+        var hadToken = auth.Token is not null;
         if (auth.Token is { } token)
         {
             request.Headers.Authorization = new("Bearer", token);
@@ -93,10 +97,16 @@ public sealed class ApiClient(IHttpClientFactory factory, AuthState auth, Naviga
         using var response = await Client().SendAsync(request);
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
-            // token 过期/失效：回登录页重新建立会话
-            await auth.SignOutAsync();
-            navigation.NavigateTo("login", replace: true);
-            return new(response.StatusCode, default, ErrorCodes.InvalidCredentials, "登录已失效，请重新登录");
+            // 仅在确实带了 token 时才判定会话失效并清态跳转：否则一次竞态请求会把有效会话抹掉，
+            // 后续请求真的变成无 token
+            if (hadToken)
+            {
+                await auth.SignOutAsync();
+                navigation.NavigateTo("login", replace: true);
+                return new(response.StatusCode, default, ErrorCodes.InvalidCredentials, "登录已失效，请重新登录");
+            }
+
+            return new(response.StatusCode, default, ErrorCodes.Unauthorized, "未登录或登录态已过期");
         }
 
         if (!response.IsSuccessStatusCode)

@@ -22,6 +22,10 @@ public sealed class AuthState(IJSRuntime js)
     /// <summary>登录态就绪/变化后通知布局重渲染（权限点菜单随之显隐）。</summary>
     public event Action? Changed;
 
+    /// <summary>等待登录态就绪：供请求路径在取 token 前调用（<see cref="InitializeAsync"/> 幂等，
+    /// 已就绪即返回）。首屏请求若抢在 token 读出前发出，会拿到无 Authorization 的 401。</summary>
+    public Task EnsureReadyAsync() => InitializeAsync();
+
     public async Task InitializeAsync()
     {
         if (IsReady)
