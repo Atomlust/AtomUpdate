@@ -24,18 +24,29 @@ COPY src/ ./src/
 # 漏拷则镜像内目标不执行，发布清单保留重复资产路径，运行期资源集合判重抛
 # InvalidOperationException、容器启动即崩（本地有该文件故开发环境不暴露）
 COPY Directory.Build.targets ./
-# linux-musl-x64：Alpine(musl) 底座所需原生库；UseAppHost=false 避免 NETSDK1084；同层删调试代理减体积
-RUN dotnet publish src/AtomUpdate.Web/AtomUpdate.Web.csproj -c Release -r linux-musl-x64 -o /app/publish /p:UseAppHost=false \
+# linux-x64：与 glibc 运行底座配套的 RID——RID 专属发布会把对应 libc 的原生依赖
+# （SQLite 的 libe_sqlite3.so 等）拷进产物，换底座必须同步换 RID，否则运行期加载失败。
+# UseAppHost=false 避免 NETSDK1084；同层删调试代理减体积
+RUN dotnet publish src/AtomUpdate.Web/AtomUpdate.Web.csproj -c Release -r linux-x64 -o /app/publish /p:UseAppHost=false \
     && rm -rf /app/publish/BlazorDebugProxy
+
+# 运行底座是 distroless（无 shell、无包管理器），运行阶段不能 RUN mkdir/chown：
+# 可写目录在这里备齐再 COPY --chown 过去。COPY 会丢弃空目录，故留 .keep 占位；
+# 应用启动时 Storage:Root 缺失也会自建（Program.cs），这里是给容器卷准备的初始属主
+RUN mkdir -p /rootfs/data/uploads && touch /rootfs/data/uploads/.keep
 
 # 运行基镜像注意：aspnet 镜像用运行时版本号（11.0.0-rc.3），SDK 镜像才用
 # SDK 带号（11.0.100-rc.3）——两者不可混用（曾误写 11.0.100-rc.3-alpine3.24，
 # MCR 无此标签，拉取即失败）
-FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.3-alpine3.24 AS runtime
+# Azure Linux distroless：211MB、glibc、自带 tzdata（/usr/share/zoneinfo，显示时区按 IANA
+# 标识解析所必需——Alpine 缺该目录曾让 Asia/Shanghai 查不到、DisplayClock 构造抛异常挂掉整条
+# SignalR 电路）。两点副作用：①无 sh，见上；②DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true，
+# 服务端代码只用 InvariantCulture 与固定格式串，不受影响
+FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.3-azurelinux3.0-distroless AS runtime
 WORKDIR /app
 EXPOSE 8080
 ENV ASPNETCORE_HTTP_PORTS=8080
-RUN mkdir -p /data/uploads /app/uploads && chown $APP_UID /data /data/uploads /app/uploads
+COPY --chown=$APP_UID:$APP_UID --from=build /rootfs/data /data
+COPY --chown=$APP_UID:$APP_UID --from=build /app/publish .
 USER $APP_UID
-COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "AtomUpdate.Web.dll"]

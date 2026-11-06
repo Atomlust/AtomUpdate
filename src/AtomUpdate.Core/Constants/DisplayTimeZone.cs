@@ -30,25 +30,33 @@ public static class DisplayTimeZone
     };
 
     /// <summary>解析为 TimeZoneInfo；空值/未知标识回落东八区（平台运行在容器 UTC 时区，
-    /// 直接用 ToLocalTime 会把用户看到的时间整体偏移，故显示层一律经此解析）。</summary>
-    public static TimeZoneInfo Resolve(string? timeZoneId)
-    {
-        if (!string.IsNullOrWhiteSpace(timeZoneId))
-        {
-            try
-            {
-                return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId.Trim());
-            }
-            catch (TimeZoneNotFoundException)
-            {
-            }
-            catch (InvalidTimeZoneException)
-            {
-            }
-        }
+    /// 直接用 ToLocalTime 会把用户看到的时间整体偏移，故显示层一律经此解析）。
+    /// 宿主没有时区库（无 tzdata 的精简镜像）时默认回落也查不到，退化为固定 +8 偏移：
+    /// 东八区无夏令时，偏移即精确值；本方法任何入参都不抛异常。</summary>
+    public static TimeZoneInfo Resolve(string? timeZoneId) =>
+        (!string.IsNullOrWhiteSpace(timeZoneId) ? TryFind(timeZoneId) : null)
+        ?? TryFind(DefaultTimeZoneId)
+        ?? FixedDefaultTimeZone;
 
-        return TimeZoneInfo.FindSystemTimeZoneById(DefaultTimeZoneId);
+    private static TimeZoneInfo? TryFind(string timeZoneId)
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId.Trim());
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return null;
+        }
+        catch (InvalidTimeZoneException)
+        {
+            return null;
+        }
     }
+
+    /// <summary>无时区库宿主的兜底时区（东八区固定偏移，无夏令时）。</summary>
+    private static readonly TimeZoneInfo FixedDefaultTimeZone = TimeZoneInfo.CreateCustomTimeZone(
+        DefaultTimeZoneId, TimeSpan.FromHours(8), "中国标准时间（东八区）", "中国标准时间（东八区）");
 
     /// <summary>校验是否为平台可识别的时区标识（供设置写入口使用）。</summary>
     public static bool IsValid(string? timeZoneId)
