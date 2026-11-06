@@ -15,6 +15,6 @@ public enum UpdateChannel
     /// <summary>候选版</summary>
     Rc,
 
-    /// <summary>正式稳定版</summary>
+    /// <summary>正式版</summary>
     Stable
 }

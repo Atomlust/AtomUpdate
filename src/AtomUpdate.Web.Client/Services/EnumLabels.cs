@@ -31,7 +31,7 @@ public static class EnumLabels
         (UpdateChannel.Preview, "预览版"),
         (UpdateChannel.Beta, "公测版"),
         (UpdateChannel.Rc, "候选版"),
-        (UpdateChannel.Stable, "正式稳定版")
+        (UpdateChannel.Stable, "正式版")
     ];
 
     public static string Channel(UpdateChannel channel) =>

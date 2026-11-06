@@ -36,7 +36,7 @@
 
             <span class="au-field-label">发布到通道</span>
             <div class="au-check-grid">
-                @foreach (var (value, label) in AllChannels)
+                @foreach (var (value, label) in EnumLabels.Channels)
                 {
                     <div class="au-check">
                         <Checkbox Id="@($"pub-{value}")"
@@ -51,15 +51,6 @@
 </PageContainer>
 
 @code {
-    private static readonly (UpdateChannel Value, string Label)[] AllChannels =
-    [
-        (UpdateChannel.Dev, "开发版"),
-        (UpdateChannel.Preview, "预览版"),
-        (UpdateChannel.Beta, "公测版"),
-        (UpdateChannel.Rc, "候选版"),
-        (UpdateChannel.Stable, "正式稳定版")
-    ];
-
     [Parameter]
     public long ReleaseId { get; set; }
 

@@ -45,7 +45,7 @@ App
 // 同一版本的语义在应用内唯一，同版本号的多架构包是同一条 Release 下的多个资产。
 
 // 通道为全局枚举预设，管理端不可增删改——
-// UpdateChannel { dev=开发版, preview=预览版, beta=公测版, rc=候选版, stable=正式稳定版 }
+// UpdateChannel { dev=开发版, preview=预览版, beta=公测版, rc=候选版, stable=正式版 }
 // （wire 值为 camelCase 全小写：dev/preview/beta/rc/stable）。发布时按枚举勾选，
 // /api/check 请求的 channel 即该枚举；越界值 400。
 
